@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dziennik formy Wercii</title>
+  <meta name="description" content="Waga, kalorie, treningi, samopoczucie i sen dzień po dniu.">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#FFE3F0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Wercia">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/wercia.css">
+</head>
+<body class="is-loading">
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-logo" viewBox="0 0 64 64">
+      <path d="M12 21C8 14 7.5 8 9.5 2c3 5.5 7.5 10 12.5 13.5z" fill="#000" stroke-width="2.5" stroke-linejoin="round" style="stroke: var(--logo-edge, none)"/>
+      <path d="M52 21c4-7 4.5-13 2.5-19-3 5.5-7.5 10-12.5 13.5z" fill="#000" stroke-width="2.5" stroke-linejoin="round" style="stroke: var(--logo-edge, none)"/>
+      <path d="M32 60C21 53 5 42.5 5 28.5 5 19.5 11.5 13 20 13c5 0 9 2.6 12 7 3-4.4 7-7 12-7 8.5 0 15 6.5 15 15.5C59 42.5 43 53 32 60z" fill="#FF5CAD" stroke-width="4" stroke-linejoin="round" style="stroke: var(--logo-edge, #000)"/>
+      <path d="M26 44.5l2.2 6 2.3-5.6M33.5 44.9l2.3 5.6 2.2-6" fill="#FFF" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M22.5 40.5c5 5 14 5 19 0" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="23" cy="31" r="3.2" fill="#000"/><circle cx="41" cy="31" r="3.2" fill="#000"/>
+      <ellipse cx="15.5" cy="24" rx="3.2" ry="4.6" fill="#FFF" opacity=".8" transform="rotate(28 15.5 24)"/>
+    </symbol>
+    <symbol id="i-heart" viewBox="0 0 24 22"><path d="M12 21.4 10.6 20.1C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.6z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h8M18 7h2M4 17h2M12 17h8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="15" cy="7" r="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="9" cy="17" r="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <template id="onboarding-tpl">
+    <section class="onboarding" id="onboarding" aria-labelledby="ob-title">
+      <div class="ob-inner">
+        <svg class="ob-mark" aria-hidden="true"><use href="#i-logo"/></svg>
+        <h1 id="ob-title">Hej, Wercia!</h1>
+        <p class="ob-lead">Kilka liczb na start. Potem codziennie tylko wpisujesz, a wszystko zapisuje się samo.</p>
+
+        <form class="ob-card" id="ob-form" novalidate>
+          <div class="field">
+            <label for="ob-name">Imię na powitanie</label>
+            <input id="ob-name" autocomplete="given-name" maxlength="40">
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="ob-weight">Ile ważysz dziś?</label>
+              <div class="with-unit"><input id="ob-weight" inputmode="decimal" autocomplete="off" placeholder="np. 68"><span class="unit">kg</span></div>
+            </div>
+            <div class="field">
+              <label for="ob-target">Ile chcesz ważyć?</label>
+              <div class="with-unit"><input id="ob-target" inputmode="decimal" autocomplete="off" placeholder="np. 58"><span class="unit">kg</span></div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="ob-date">Do kiedy?</label>
+            <input id="ob-date" type="date">
+            <p class="hint" id="ob-date-hint"></p>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="ob-kcal">Ile kalorii dziennie?</label>
+              <div class="with-unit"><input id="ob-kcal" inputmode="numeric" autocomplete="off" placeholder="np. 1750"><span class="unit">kcal</span></div>
+              <p class="hint" id="ob-kcal-hint"></p>
+            </div>
+            <div class="field">
+              <label for="ob-weekly">Ile treningów w tygodniu?</label>
+              <div class="stepper is-count">
+                <button type="button" class="step" data-count="-1" aria-label="Mniej treningów"><svg aria-hidden="true"><use href="#i-minus"/></svg></button>
+                <input id="ob-weekly" inputmode="numeric" autocomplete="off" value="3">
+                <button type="button" class="step" data-count="1" aria-label="Więcej treningów"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Jakie treningi robisz?</legend>
+            <div class="chips" id="ob-trainings"></div>
+            <div class="add-row">
+              <input id="ob-new-training" maxlength="24" autocomplete="off" placeholder="Dodaj, np. Rolki" aria-label="Nowy rodzaj treningu">
+              <button type="button" class="btn btn-small" id="ob-add">Dodaj</button>
+            </div>
+          </fieldset>
+          <p class="form-error" id="ob-error" role="alert" hidden></p>
+          <button type="submit" class="btn btn-primary btn-big">Zaczynamy</button>
+        </form>
+
+        <div class="ob-more">
+          <button type="button" class="link" id="ob-import">Mam kopię danych z pliku</button>
+          <button type="button" class="link" id="ob-sync">Mam dane na GitHubie</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <header class="topbar" id="topbar" hidden>
+    <div class="brand">
+      <svg class="brand-mark" aria-hidden="true"><use href="#i-logo"/></svg>
+      <span>Wercia</span>
+    </div>
+    <div class="topbar-actions">
+      <span class="streak" id="streak" hidden></span>
+      <button class="icon-btn" id="btn-settings" type="button" aria-label="Ustawienia" title="Ustawienia">
+        <svg aria-hidden="true"><use href="#i-settings"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden>
+    <div class="banner-inner">
+      <p id="banner-text"></p>
+      <button type="button" class="banner-action" id="banner-action"></button>
+    </div>
+  </div>
+
+  <main id="app" hidden>
+    <section class="stage" aria-labelledby="hello">
+      <div class="stage-inner">
+        <div class="stage-top">
+          <h1 id="hello">Hej.</h1>
+          <p class="today-line" id="today-line"></p>
+        </div>
+
+        <figure class="barbell-figure">
+          <div class="barbell" id="barbell"></div>
+          <figcaption class="barbell-caption" id="barbell-caption"></figcaption>
+        </figure>
+
+        <div class="readout" id="readout" hidden>
+          <div class="readout-main">
+            <p class="big" id="trend-weight"></p>
+            <p class="big-sub" id="trend-sub"></p>
+          </div>
+          <dl class="facts" id="facts"></dl>
+        </div>
+
+        <div class="coach">
+          <svg class="coach-mark" aria-hidden="true"><use href="#i-logo"/></svg>
+          <p id="coach"></p>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <section class="today card" id="today" aria-labelledby="today-title">
+        <div class="today-head">
+          <h2 id="today-title">Dziś <small id="today-date"></small></h2>
+          <p class="save-state" id="today-state" aria-live="polite"></p>
+          <button type="button" class="btn btn-small" id="btn-other-day">Inny dzień</button>
+        </div>
+        <div class="ef" id="today-form"></div>
+      </section>
+
+      <section class="week" id="week" aria-label="Ostatnie 7 dni"></section>
+
+      <div class="columns">
+        <div class="col-main">
+          <section class="block" aria-labelledby="h-weight">
+            <div class="block-head">
+              <h2 id="h-weight">Waga</h2>
+              <div class="seg" id="range" role="group" aria-label="Zakres wykresów">
+                <button type="button" data-range="30" aria-pressed="true">30 dni</button>
+                <button type="button" data-range="90" aria-pressed="false">90 dni</button>
+                <button type="button" data-range="all" aria-pressed="false">Całość</button>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="legend" aria-hidden="true">
+                <span class="lg"><i class="sw sw-line" style="--c: var(--pink)"></i>średnia z 7 dni</span>
+                <span class="lg"><i class="sw sw-dot" style="--c: var(--black)"></i>pomiar</span>
+                <span class="lg"><i class="sw sw-dash" style="--c: var(--blue-line)"></i>plan</span>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-weight" role="img" aria-label="Wykres wagi: pomiary, średnia z 7 dni i plan"></canvas>
+                <p class="chart-empty" hidden>Brak pomiarów wagi w tym okresie.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="block" aria-labelledby="h-kcal">
+            <div class="block-head"><h2 id="h-kcal">Kalorie</h2></div>
+            <div class="panel">
+              <div class="legend" aria-hidden="true">
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--pink)"></i>w celu</span>
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--red)"></i>ponad cel</span>
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--blue)"></i>poniżej celu</span>
+                <span class="lg"><i class="sw sw-dash" style="--c: var(--black)"></i>cel</span>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-kcal" role="img" aria-label="Wykres kalorii dziennie względem celu"></canvas>
+                <p class="chart-empty" hidden>Brak wpisów kalorii w tym okresie.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="block" aria-labelledby="h-macro">
+            <div class="block-head">
+              <h2 id="h-macro">Makro</h2>
+              <p class="block-note" id="macro-note"></p>
+            </div>
+            <div class="panel">
+              <div class="legend" aria-hidden="true">
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--macro-protein)"></i>białko</span>
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--macro-fat)"></i>tłuszcze</span>
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--macro-carbs)"></i>węgle</span>
+                <span class="lg"><i class="sw sw-dash" style="--c: var(--black)"></i>cel kalorii</span>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-macro" role="img" aria-label="Wykres kalorii z białka, tłuszczów i węglowodanów dziennie"></canvas>
+                <p class="chart-empty" hidden>Brak wpisów makro w tym okresie.</p>
+              </div>
+              <p class="caption">Słupek to kalorie z makro: białko i węgle po 4 kcal na gram, tłuszcze 9.</p>
+            </div>
+          </section>
+
+          <section class="block" aria-labelledby="h-sleep">
+            <div class="block-head"><h2 id="h-sleep">Sen</h2></div>
+            <div class="panel">
+              <div class="legend" aria-hidden="true">
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--blue)"></i>7 h i więcej</span>
+                <span class="lg"><i class="sw sw-bar" style="--c: var(--blush-strong)"></i>mniej niż 7 h</span>
+                <span class="lg"><i class="sw sw-dash" style="--c: var(--black)"></i>zalecane minimum</span>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-sleep" role="img" aria-label="Wykres godzin snu względem 7 godzin"></canvas>
+                <p class="chart-empty" hidden>Brak wpisów snu w tym okresie.</p>
+              </div>
+              <h3 class="chart-sub">Ocena snu <small>0–100</small></h3>
+              <div class="chart-box is-short">
+                <canvas id="chart-sleep-score" role="img" aria-label="Wykres oceny snu w skali 0–100"></canvas>
+                <p class="chart-empty" hidden>Brak ocen snu w tym okresie.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="col-side">
+          <section class="block" aria-labelledby="h-train">
+            <div class="block-head">
+              <h2 id="h-train">Treningi</h2>
+              <p class="block-note" id="train-count"></p>
+            </div>
+            <div class="panel">
+              <div class="heatmap" id="heatmap" role="img"></div>
+              <p class="caption" id="heat-caption"></p>
+              <div class="legend" id="heat-legend"></div>
+            </div>
+          </section>
+
+          <section class="block" aria-labelledby="h-insights">
+            <div class="block-head">
+              <h2 id="h-insights">Zależności</h2>
+              <p class="block-note">ostatnie 90 dni</p>
+            </div>
+            <ul class="insights" id="insights"></ul>
+            <p class="caption" id="insights-caption"></p>
+          </section>
+
+          <section class="block" aria-labelledby="h-badges">
+            <div class="block-head">
+              <h2 id="h-badges">Odznaki</h2>
+              <p class="block-note" id="badges-count"></p>
+            </div>
+            <ul class="badges" id="badges"></ul>
+            <p class="caption" id="badge-caption" aria-live="polite"></p>
+          </section>
+        </div>
+      </div>
+
+      <section class="block weeks" id="weeks" aria-labelledby="h-weeks">
+        <div class="block-head">
+          <h2 id="h-weeks">Tygodnie</h2>
+          <p class="block-note" id="weeks-note"></p>
+        </div>
+        <div class="wk-head" aria-hidden="true">
+          <span>pn</span><span>wt</span><span>śr</span><span>czw</span><span>pt</span><span>sob</span><span>nd</span>
+        </div>
+        <div id="weeks-list"></div>
+        <button type="button" class="btn" id="btn-weeks-more" hidden>Pokaż starsze tygodnie</button>
+      </section>
+
+      <section class="block logbook" id="logbook" aria-labelledby="h-log">
+        <div class="block-head">
+          <h2 id="h-log">Dziennik</h2>
+          <p class="block-note" id="log-count"></p>
+        </div>
+        <div class="panel" id="log"></div>
+        <button type="button" class="btn" id="btn-more" hidden>Pokaż starsze</button>
+      </section>
+    </div>
+  </main>
+
+  <dialog class="sheet" id="entry-sheet" aria-labelledby="entry-title">
+    <div class="sheet-head">
+      <h2 id="entry-title">Wpis</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Zamknij">
+        <svg aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label for="s-date">Dzień</label>
+        <div class="date-row">
+          <input type="date" id="s-date">
+          <button type="button" class="chip day-chip" data-offset="-1" aria-pressed="false">Wczoraj</button>
+          <button type="button" class="chip day-chip" data-offset="-2" aria-pressed="false">Przedwczoraj</button>
+        </div>
+      </div>
+      <div class="ef" id="sheet-form"></div>
+    </div>
+    <div class="sheet-foot">
+      <p class="save-state" id="sheet-state" aria-live="polite"></p>
+      <button type="button" class="btn btn-danger" id="btn-delete" hidden>Usuń wpis</button>
+      <button type="button" class="btn btn-primary" data-close>Gotowe</button>
+    </div>
+  </dialog>
+
+  <dialog class="sheet" id="settings-sheet" aria-labelledby="settings-title">
+    <div class="sheet-head">
+      <h2 id="settings-title">Ustawienia</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Zamknij">
+        <svg aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <section class="settings-group" id="goals-group" aria-labelledby="h-goals">
+        <h3 id="h-goals">Cele</h3>
+        <form id="goals-form" novalidate>
+          <div class="grid-2">
+            <div class="field span-2">
+              <label for="g-name">Imię na powitanie</label>
+              <input id="g-name" autocomplete="off" maxlength="40">
+            </div>
+            <div class="field">
+              <label for="g-startDate">Start</label>
+              <input id="g-startDate" type="date">
+            </div>
+            <div class="field">
+              <label for="g-startWeight">Waga na starcie</label>
+              <div class="with-unit"><input id="g-startWeight" inputmode="decimal" autocomplete="off"><span class="unit">kg</span></div>
+            </div>
+            <div class="field">
+              <label for="g-targetDate">Termin celu</label>
+              <input id="g-targetDate" type="date">
+            </div>
+            <div class="field">
+              <label for="g-targetWeight">Waga docelowa</label>
+              <div class="with-unit"><input id="g-targetWeight" inputmode="decimal" autocomplete="off"><span class="unit">kg</span></div>
+            </div>
+            <div class="field">
+              <label for="g-kcal">Kalorie dziennie</label>
+              <div class="with-unit"><input id="g-kcal" inputmode="numeric" autocomplete="off"><span class="unit">kcal</span></div>
+            </div>
+            <fieldset class="field span-2">
+              <legend>Makro dziennie <small>opcjonalnie</small></legend>
+              <div class="macro-row">
+                <div class="field">
+                  <label for="g-protein" class="sub-label">Białko</label>
+                  <div class="with-unit"><input id="g-protein" inputmode="numeric" autocomplete="off"><span class="unit">g</span></div>
+                </div>
+                <div class="field">
+                  <label for="g-fat" class="sub-label">Tłuszcze</label>
+                  <div class="with-unit"><input id="g-fat" inputmode="numeric" autocomplete="off"><span class="unit">g</span></div>
+                </div>
+                <div class="field">
+                  <label for="g-carbs" class="sub-label">Węgle</label>
+                  <div class="with-unit"><input id="g-carbs" inputmode="numeric" autocomplete="off"><span class="unit">g</span></div>
+                </div>
+              </div>
+              <p class="hint" id="g-macro-hint"></p>
+            </fieldset>
+            <div class="field">
+              <label for="g-weekly">Treningi w tygodniu</label>
+              <input id="g-weekly" inputmode="numeric" autocomplete="off">
+            </div>
+            <div class="field span-2">
+              <label for="g-trainings">Rodzaje treningów</label>
+              <input id="g-trainings" autocomplete="off" spellcheck="false">
+              <p class="hint">Oddziel przecinkami. Kolejność ustala kolory: różowy, czerwony, błękitny, czarny, biały.</p>
+            </div>
+          </div>
+          <p class="form-msg" id="goals-msg" role="status" hidden></p>
+          <div class="row-actions">
+            <button type="submit" class="btn btn-primary">Zapisz cele</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-group" id="backup-group" aria-labelledby="h-backup">
+        <h3 id="h-backup">Kopia danych</h3>
+        <p class="hint" id="backup-hint"></p>
+        <div class="row-actions">
+          <button type="button" class="btn" id="btn-export">Pobierz kopię</button>
+          <button type="button" class="btn" id="btn-import">Wczytaj kopię</button>
+        </div>
+        <div class="confirm-row" id="import-confirm" hidden>
+          <p id="import-summary"></p>
+          <div class="row-actions">
+            <button type="button" class="btn btn-danger is-armed" id="btn-import-yes">Zastąp moje dane</button>
+            <button type="button" class="btn" id="btn-import-no">Anuluj</button>
+          </div>
+        </div>
+        <p class="form-msg" id="backup-msg" role="status" hidden></p>
+      </section>
+
+      <section class="settings-group" aria-labelledby="h-sync">
+        <h3 id="h-sync">Synchronizacja z GitHubem</h3>
+        <p class="hint">Opcjonalna. Wpisy trafiają wtedy także do pliku JSON w repozytorium, więc są na każdym urządzeniu i Claude może je dopisywać z czatu. Plik w publicznym repozytorium widzi każdy, dlatego lepsze jest prywatne.</p>
+        <p class="hint" id="sync-status"></p>
+        <form id="sync-form" novalidate>
+          <div class="grid-2">
+            <div class="field">
+              <label for="y-owner">Właściciel</label>
+              <input id="y-owner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="login na GitHubie">
+            </div>
+            <div class="field">
+              <label for="y-repo">Repozytorium</label>
+              <input id="y-repo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="np. dziennik-wercii">
+            </div>
+            <div class="field">
+              <label for="y-branch">Gałąź</label>
+              <input id="y-branch" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="main">
+            </div>
+            <div class="field">
+              <label for="y-path">Plik z danymi</label>
+              <input id="y-path" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="data/wercia.json">
+            </div>
+            <div class="field span-2">
+              <label for="y-token">Token GitHuba</label>
+              <input id="y-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+              <p class="hint">Fine-grained token: tylko to repozytorium, Contents: Read and write. Zostaje w tej przeglądarce.</p>
+            </div>
+          </div>
+          <p class="form-msg" id="sync-msg" role="status" hidden></p>
+          <div class="row-actions">
+            <button type="submit" class="btn btn-primary" id="btn-connect">Połącz</button>
+            <button type="button" class="btn" id="btn-disconnect" hidden>Rozłącz to urządzenie</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-group" id="reset-group" aria-labelledby="h-reset">
+        <h3 id="h-reset">Zacznij od nowa</h3>
+        <p class="hint">Usuwa cele i wszystkie wpisy z tej przeglądarki i pokazuje formularz startowy. Plik na GitHubie zostaje.</p>
+        <div class="row-actions">
+          <button type="button" class="btn btn-danger" id="btn-reset">Usuń dane z tej przeglądarki</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <noscript><p class="noscript">Dziennik potrzebuje włączonego JavaScriptu.</p></noscript>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/barbell.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/confetti.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
