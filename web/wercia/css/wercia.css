@@ -18,6 +18,7 @@
   --macro-protein: var(--red);
   --macro-fat: var(--pink);
   --macro-carbs: var(--blue);
+  --period-band: rgba(228, 0, 43, 0.13);
   --line: 3px solid var(--black);
   --shadow: 5px 5px 0 var(--black);
   --shadow-sm: 3px 3px 0 var(--black);
@@ -137,16 +138,30 @@ a { color: inherit; text-underline-offset: 3px; }
 .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 26px; line-height: 1; color: var(--white); text-shadow: 2px 2px 0 var(--red); }
 .brand-mark { width: 38px; height: 38px; flex: none; --logo-edge: var(--white); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
+/* days in a row with an entry: pink once today is in, dashed while today is still missing */
 .streak {
-  padding: 5px 12px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 14px;
   border: var(--line);
   border-radius: 999px;
   background: var(--white);
   box-shadow: 2px 2px 0 var(--black);
   font-weight: 900;
   font-size: 15px;
+  line-height: 40px;
   white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
+.streak:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--black); }
+.streak-num { font-family: var(--font-display); font-weight: 400; font-size: 20px; }
+.streak.is-done { background: var(--pink); }
+.streak.is-risk { border-style: dashed; background: var(--blush); }
+.streak.is-zero .streak-fire { filter: grayscale(1); opacity: 0.55; }
+.streak.pop { animation: pop 0.45s ease-out; }
 
 .banner { background: var(--pink); color: var(--black); font-weight: 800; border-bottom: var(--line); }
 .banner.is-error { background: var(--red); color: var(--white); }
@@ -347,7 +362,11 @@ a { color: inherit; text-underline-offset: 3px; }
 /* entry form (today card and sheet) */
 .ef { display: grid; gap: 18px 24px; }
 .ef-grid { display: grid; gap: 16px 20px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
-.f-training, .f-mood, .f-note { min-width: 0; }
+.f-training, .f-mood, .f-cycle, .f-note { min-width: 0; }
+.cycle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.cycle-row .chip { gap: 6px; }
+.cycle-row .chip[aria-pressed="true"] { background: var(--red); color: var(--white); }
+.cycle-row .hint { flex: 1 1 220px; margin: 0; }
 
 .field { display: grid; align-content: start; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .field > label, .field > legend { padding: 0; font-weight: 900; font-size: 15px; }
@@ -827,10 +846,11 @@ body.is-onboarding .fab { display: none; }
 @media (min-width: 960px) {
   .columns { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
   .chart-box { height: 270px; }
-  .today .ef { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-areas: "grid grid" "training mood" "note note"; }
+  .today .ef { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-areas: "grid grid" "training mood" "cycle cycle" "note note"; }
   .today .ef-grid { grid-area: grid; }
   .today .f-training { grid-area: training; }
   .today .f-mood { grid-area: mood; }
+  .today .f-cycle { grid-area: cycle; }
   .today .f-note { grid-area: note; }
 }
 
@@ -894,7 +914,8 @@ body.is-onboarding .fab { display: none; }
   .moods { gap: 4px; }
   .mood { font-size: 11.5px; }
   .brand { font-size: 22px; }
-  .streak { padding: 4px 10px; font-size: 14px; }
+  .streak { padding: 0 11px; font-size: 14px; }
+  .streak-num { font-size: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

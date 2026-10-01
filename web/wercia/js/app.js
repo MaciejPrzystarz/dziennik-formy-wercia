@@ -29,6 +29,7 @@
   const SEEN_KEY = 'wercia.seen';
   const RANGE_KEY = 'wercia.range';
   const HEAT_WEEKS = 20;
+  const PERIOD = '🩸';
   const HEART = '<svg aria-hidden="true" viewBox="0 0 24 22"><use href="#i-heart"/></svg>';
 
   const ui = {
@@ -47,7 +48,8 @@
     resetArmed: false,
     resetTimer: 0,
     importText: null,
-    renderedText: ''
+    renderedText: '',
+    streakShown: null
   };
 
   const entrySheet = $('#entry-sheet');
@@ -69,6 +71,7 @@
       settings, entries, today, prog, latest, slopeDay, plan,
       planDiff: prog.trend != null ? prog.trend - plan : null,
       streak: S.streaks(entries, today),
+      cycle: S.cycles(entries, today),
       week: S.weekSummary(entries, today),
       kcal: S.kcalSummary(entries, today, settings.kcalTarget),
       mood: S.moodSummary(entries, today),
@@ -93,6 +96,9 @@
       return `Cel ${U.fmt1(s.targetWeight)} kg zdobyty. Nowy ustawisz w ustawieniach.`;
     }
     if (S.isNewLow(c.entries, c.today)) return 'Najniższa waga od startu. Groźna jesteś.';
+    if (waterWeight(c)) {
+      return 'Waga w górę tuż przed okresem albo na jego początku to zwykle woda, nie tłuszcz. Za kilka dni zejdzie, patrz na średnią.';
+    }
     if (c.mood && c.mood.count >= 3 && c.mood.avg <= 2.5) {
       return 'Samopoczucie od tygodnia słabe. Lżejszy tydzień to nie porażka, sen i jedzenie też się liczą.';
     }
@@ -115,9 +121,30 @@
     if (s.weeklyTrainings > 0 && c.week.trainings.length >= s.weeklyTrainings) {
       return 'Wszystkie treningi z tego tygodnia odhaczone. Bestia.';
     }
-    if (c.streak.current >= 7) return `${c.streak.current} dni z wpisem bez przerwy. Nikt Cię nie zatrzyma.`;
+    if (c.streak.current >= 7) return `${c.streak.current} dni z rzędu z wpisanymi kaloriami. Nikt Cię nie zatrzyma.`;
     if (c.planDiff != null && c.planDiff <= -0.1) return `Jesteś ${U.fmt1(-c.planDiff)} kg przed planem. Tak się to robi.`;
     return 'Waga skacze z dnia na dzień przez wodę i jedzenie. Liczy się średnia z 7 dni, nie jeden poranek.';
+  }
+
+  // Fresh weigh-in above the 7-day average while a period is close or has just started.
+  function waterWeight(c) {
+    const cy = c.cycle;
+    if (cy.day == null || !c.latest || c.prog.trend == null) return false;
+    if (U.diffDays(c.latest.date, c.today) > 1 || c.latest.weight - c.prog.trend < 0.3) return false;
+    const toNext = U.diffDays(c.today, cy.next);
+    return (toNext >= 0 && toNext <= 5) || (cy.today && cy.day <= 3);
+  }
+
+  // "Dzień cyklu 12, okres za ok. 16 dni." for the greeting and the form.
+  function cycleLine(cy, today) {
+    if (cy.day == null) return '';
+    const guess = cy.estimated ? ' (na razie przy założeniu 28 dni)' : '';
+    if (cy.today) return `Dzień cyklu ${cy.day}, okres.`;
+    const late = cy.day - cy.length;
+    if (cy.late) return `Dzień cyklu ${cy.day}, okres spóźnia się o ${late} ${late === 1 ? 'dzień' : 'dni'}${guess}.`;
+    const n = U.diffDays(today, cy.next);
+    const when = n === 0 ? 'okres spodziewany dziś' : n === 1 ? 'okres spodziewany jutro' : `okres za ok. ${n} dni`;
+    return `Dzień cyklu ${cy.day}, ${when}${guess}.`;
   }
 
   function trainingColor(name, settings) {
@@ -146,6 +173,7 @@
     if (!parts.length && S.hasMacros(e)) parts.push(macroLine(e));
     if (!parts.length && e.mood) parts.push(`samopoczucie ${MOODS[e.mood].label.toLowerCase()}`);
     if (!parts.length && typeof e.sleep === 'number') parts.push(`sen ${U.fmtHours(e.sleep)} h`);
+    if (!parts.length && e.period) parts.push('okres');
     if (!parts.length) parts.push('notatka');
     return parts.join(', ');
   }
@@ -159,6 +187,7 @@
     if (e.mood) parts.push(`samopoczucie ${MOODS[e.mood].emoji} ${MOODS[e.mood].label.toLowerCase()}`);
     if (typeof e.sleep === 'number') parts.push(`sen ${U.fmtHours(e.sleep)} h`);
     if (typeof e.sleepScore === 'number') parts.push(`ocena snu ${e.sleepScore}/100`);
+    if (e.period) parts.push('okres');
     return parts.join(', ');
   }
 
@@ -181,15 +210,55 @@
   }
 
   function renderChrome(vm) {
-    const n = vm.streak.current;
-    const streak = $('#streak');
-    streak.hidden = n < 2;
-    streak.textContent = `🔥 ${n} ${n === 1 ? 'dzień' : 'dni'}`;
-    streak.title = `Dni z wpisem bez przerwy. Rekord: ${vm.streak.best}.`;
+    renderStreak(vm);
     const writable = store.canWrite();
     $('#today').hidden = !writable;
     $('#fab').hidden = !writable;
     renderBanner();
+  }
+
+  // Days in a row with calories. A missed weigh-in doesn't break it; before today's calories
+  // the streak is "at risk", not lost.
+  function streakText(st, todayEntry) {
+    const days = (n) => `${n} ${n === 1 ? 'dzień' : 'dni'}`;
+    const todo = todayEntry ? 'Dziś brakuje jeszcze kalorii' : 'Wpisz dziś kalorie';
+    let text;
+    if (!st.current) text = `Seria dni z kaloriami: 0. ${todo}, żeby ją zacząć.`;
+    else if (st.loggedToday) text = `${capitalize(days(st.current))} z rzędu z wpisanymi kaloriami, dzisiejsze też są.`;
+    else text = `${capitalize(days(st.current))} z rzędu z kaloriami do wczoraj. ${todo}, żeby seria trwała.`;
+    if (st.current >= 2 && st.current >= st.best) return `${text} To Twój rekord.`;
+    if (st.best > st.current) return `${text} Rekord: ${days(st.best)}.`;
+    return text;
+  }
+
+  function renderStreak(vm) {
+    const st = vm.streak;
+    const el = $('#streak');
+    el.hidden = false;
+    el.classList.toggle('is-done', st.loggedToday);
+    el.classList.toggle('is-risk', !st.loggedToday && st.current > 0);
+    el.classList.toggle('is-zero', !st.current);
+    $('#streak-num').textContent = String(st.current);
+    $('#streak-unit').textContent = st.current === 1 ? 'dzień' : 'dni';
+    const text = streakText(st, vm.byDate.get(vm.today));
+    el.title = text;
+    el.setAttribute('aria-label', text);
+    if (ui.streakShown != null && st.current > ui.streakShown) {
+      el.classList.remove('pop');
+      void el.offsetWidth; // restart the animation
+      el.classList.add('pop');
+    }
+    ui.streakShown = st.current;
+  }
+
+  function onStreakClick() {
+    const vm = ui.vm;
+    if (!vm) return;
+    if (!vm.streak.loggedToday && store.canWrite()) {
+      $('#today').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      todayForm.focusKcal();
+    }
+    toast(streakText(vm.streak, vm.byDate.get(vm.today)));
   }
 
   function renderBanner() {
@@ -226,7 +295,8 @@
   function renderStage(vm, anim) {
     const s = vm.settings;
     $('#hello').textContent = `Hej, ${s.name || 'Wercia'}.`;
-    $('#today-line').textContent = `${capitalize(WEEKDAYS_LONG[U.weekdayIndex(vm.today)])}, ${U.fmtLong(vm.today, false)}.`;
+    $('#today-line').textContent = [`${capitalize(WEEKDAYS_LONG[U.weekdayIndex(vm.today)])}, ${U.fmtLong(vm.today, false)}.`,
+      cycleLine(vm.cycle, vm.today)].filter(Boolean).join(' ');
 
     DF.barbell.render($('#barbell'), vm.pl, anim);
     $('#barbell-caption').textContent = barbellCaption(vm);
@@ -398,7 +468,8 @@
     const weight = e && typeof e.weight === 'number' ? U.fmtWeight(e.weight) : '';
     const marks = e
       ? (S.isTraining(e) ? `<i class="dot t-${trainingColor(e.training, vm.settings)}"></i>` : '') +
-        (e.mood ? `<span class="emoji">${MOODS[e.mood].emoji}</span>` : '')
+        (e.mood ? `<span class="emoji">${MOODS[e.mood].emoji}</span>` : '') +
+        (e.period ? `<span class="emoji">${PERIOD}</span>` : '')
       : '';
     const tag = d.future ? 'div' : 'button';
     const attrs = tag === 'button' ? ` type="button" data-date="${d.key}"` : '';
@@ -503,13 +574,14 @@
   const INSIGHT_WORDS = {
     mood: { fmt: (v) => U.fmt1(v), unit: '', subject: 'samopoczucie jest średnio', more: 'wyższe', less: 'niższe', flat: 'Samopoczucie podobne w obu przypadkach.' },
     kcal: { fmt: (v) => U.fmtInt(v), unit: ' kcal', subject: 'jesz średnio', more: 'więcej', less: 'mniej', flat: 'Kalorie podobne w obu przypadkach.' },
-    hours: { fmt: (v) => U.fmt1(v), unit: ' h', subject: 'śpisz średnio', more: 'dłużej', less: 'krócej', flat: 'Sen podobny w obu przypadkach.' }
+    hours: { fmt: (v) => U.fmt1(v), unit: ' h', subject: 'śpisz średnio', more: 'dłużej', less: 'krócej', flat: 'Sen podobny w obu przypadkach.' },
+    kg: { fmt: (v) => U.fmt1(v), value: (v) => U.signed(v), unit: ' kg', subject: 'waga jest średnio', more: 'wyższa', less: 'niższa', flat: 'Cykl nie zmienia wyraźnie wagi.' }
   };
 
   function insightValue(kind, v) {
     const w = INSIGHT_WORDS[kind];
     const emoji = kind === 'mood' ? `<span class="emoji" aria-hidden="true">${moodOf(v).emoji}</span>` : '';
-    return `${emoji}${esc(w.fmt(v))}<small>${w.unit}</small>`;
+    return `${emoji}${esc((w.value || w.fmt)(v))}<small>${w.unit}</small>`;
   }
 
   function insightItem(it) {
@@ -598,7 +670,8 @@
     const training = S.isTraining(e)
       ? `<i class="dot t-${trainingColor(e.training, s)}"></i>${esc(e.training)}`
       : `<span class="none">${e.date === today ? '–' : 'odpoczynek'}</span>`;
-    const mood = e.mood ? `<span title="${MOODS[e.mood].label}">${MOODS[e.mood].emoji}</span>` : '';
+    const mood = (e.mood ? `<span title="${MOODS[e.mood].label}">${MOODS[e.mood].emoji}</span>` : '') +
+      (e.period ? `<span title="Okres">${PERIOD}</span>` : '');
     const sleepParts = [];
     if (typeof e.sleep === 'number') sleepParts.push(`sen ${U.fmtHours(e.sleep)} h`);
     if (typeof e.sleepScore === 'number') sleepParts.push(`${e.sleepScore}/100`);
@@ -815,6 +888,13 @@
       </div>
       <fieldset class="field f-training"><legend>Trening <small>stuknij jeszcze raz, żeby odznaczyć</small></legend><div class="chips" data-chips></div></fieldset>
       <fieldset class="field f-mood"><legend>Samopoczucie</legend><div class="moods" data-moods>${moods}</div></fieldset>
+      <fieldset class="field f-cycle">
+        <legend>Cykl</legend>
+        <div class="cycle-row">
+          <button type="button" class="chip" data-period aria-pressed="false"><span aria-hidden="true">${PERIOD}</span>Okres</button>
+          <p class="hint" data-hint="cycle"></p>
+        </div>
+      </fieldset>
       <div class="field f-note">
         <label for="${p}-note">Notatka</label>
         <textarea id="${p}-note" data-field="note" rows="2" maxlength="280" placeholder="Opcjonalnie, np. rekord w hip thruście"></textarea>
@@ -894,6 +974,14 @@
     function pressChoices(e) {
       $$('[data-training]', host).forEach((b) => b.setAttribute('aria-pressed', String(!!e && !!e.training && b.dataset.training === e.training)));
       $$('[data-mood]', host).forEach((b) => b.setAttribute('aria-pressed', String(!!e && Number(b.dataset.mood) === e.mood)));
+      $('[data-period]', host).setAttribute('aria-pressed', String(!!e && !!e.period));
+    }
+
+    function cycleHint() {
+      const line = date ? cycleLine(S.cycles(store.state.data.entries, date), date) : '';
+      const pub = store.state.mode === 'github' ? 'Widać to w publicznym pliku, jak cały dziennik.' : '';
+      $('[data-hint="cycle"]', host).textContent =
+        [line || 'Zaznaczaj każdy dzień okresu, a policzę dzień cyklu i następny termin.', pub].filter(Boolean).join(' ');
     }
 
     // Fill from stored data; `soft` leaves alone whatever she is typing right now.
@@ -910,6 +998,7 @@
       pressChoices(e);
       kcalHint();
       macroHint();
+      cycleHint();
     }
 
     function commit(field, showErrors) {
@@ -1002,6 +1091,15 @@
         $$('[data-mood]', host).forEach((b) => b.setAttribute('aria-pressed', String(on && b === mood)));
         if (on) store.setEntry(date, { mood: Number(mood.dataset.mood) });
         else store.setEntry(date, {}, ['mood']);
+        return;
+      }
+      const period = ev.target.closest('[data-period]');
+      if (period && date) {
+        const on = period.getAttribute('aria-pressed') !== 'true';
+        period.setAttribute('aria-pressed', String(on));
+        if (on) store.setEntry(date, { period: true });
+        else store.setEntry(date, {}, ['period']);
+        cycleHint();
       }
     });
 
@@ -1016,7 +1114,8 @@
       refresh() { if (date) fill(true); },
       flush() { [...timers.keys()].forEach((field) => commit(field, false)); },
       cancel() { timers.forEach((t) => clearTimeout(t)); timers.clear(); },
-      focusWeight() { q('weight').focus(); }
+      focusWeight() { q('weight').focus(); },
+      focusKcal() { q('kcal').focus(); }
     };
   }
 
@@ -1489,6 +1588,7 @@
     disarmReset();
     ui.savedThisVisit = false;
     ui.snap = null;
+    ui.streakShown = null;
     store.resetAll(); // emits 'load' -> first-visit form
   }
 
@@ -1499,6 +1599,7 @@
     sheetForm = createForm($('#sheet-form'), 's');
 
     $('#btn-settings').addEventListener('click', openSettings);
+    $('#streak').addEventListener('click', onStreakClick);
     $('#btn-other-day').addEventListener('click', () => openEntry());
     $('#fab').addEventListener('click', () => openEntry(U.todayKey()));
     $('#today-state').addEventListener('click', () => { if (store.state.sync.status === 'error') openSettings(); });

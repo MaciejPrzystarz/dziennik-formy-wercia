@@ -45,11 +45,64 @@
     assert.near(pl.partial, 0.5);
   });
 
-  test('streaks: today without an entry does not break the streak yet', () => {
-    const entries = daily('2026-09-20', [1, 1, 1, 1, 1, null, null, null, 1, 1], () => ({ mood: 3 }));
+  test('streaks: today without calories does not break the streak yet', () => {
+    const entries = daily('2026-09-20', [1, 1, 1, 1, 1, null, null, null, 1, 1], () => ({ kcal: 1800 }));
     const st = S.streaks(entries, '2026-09-30');
     assert.equal(st.current, 2);
     assert.equal(st.best, 5);
+  });
+
+  test('streaks: calories count, a missed weigh-in does not, weight alone is not enough', () => {
+    const noWeigh = S.streaks([
+      { date: '2026-09-29', weight: 69, kcal: 1900 },
+      { date: '2026-09-30', kcal: 1850 },
+      { date: '2026-10-01', weight: 68.8, kcal: 1950 }
+    ], '2026-10-01');
+    assert.equal(noWeigh.current, 3);
+    assert.equal(noWeigh.loggedToday, true);
+    const weightOnly = S.streaks([{ date: '2026-09-30', kcal: 1900 }, { date: '2026-10-01', weight: 69 }], '2026-10-01');
+    assert.equal(weightOnly.current, 1, 'yesterday still counts, today has no calories yet');
+    assert.equal(weightOnly.loggedToday, false);
+    const gap = S.streaks([{ date: '2026-09-28', kcal: 1900 }, { date: '2026-09-29', weight: 69 }], '2026-10-01');
+    assert.equal(gap.current, 0);
+    assert.equal(gap.best, 1);
+  });
+
+  test('cycles: starts, mean length, cycle day and next period', () => {
+    const period = (from, n) => daily(from, Array(n).fill(1), () => ({ period: true }));
+    const entries = [...period('2026-08-01', 5), ...period('2026-08-30', 4), ...period('2026-09-28', 5)];
+    const cy = S.cycles(entries, '2026-10-10');
+    assert.deepEqual(cy.starts, ['2026-08-01', '2026-08-30', '2026-09-28']);
+    assert.equal(cy.length, 29);
+    assert.equal(cy.estimated, false);
+    assert.equal(cy.day, 13);
+    assert.equal(cy.next, '2026-10-27');
+    assert.equal(cy.today, false);
+    assert.equal(cy.late, false);
+  });
+
+  test('cycles: one period gives a 28-day guess, none gives nothing', () => {
+    const cy = S.cycles([{ date: '2026-09-20', period: true }, { date: '2026-09-21', period: true }], '2026-09-21');
+    assert.equal(cy.day, 2);
+    assert.equal(cy.today, true);
+    assert.equal(cy.estimated, true);
+    assert.equal(cy.next, '2026-10-18');
+    assert.equal(S.cycles([{ date: '2026-09-20', weight: 60 }], '2026-09-21').day, null);
+    assert.equal(S.cycles([{ date: '2026-09-20', period: true }], '2026-10-20').late, true);
+  });
+
+  test('insights: weight around the period start, against the 7-day average', () => {
+    const entries = [];
+    for (let i = 0; i < 84; i++) {
+      const date = U.addDays('2026-07-01', i);
+      const day = i % 28; // period on days 0–4 of each 28-day cycle
+      const water = day >= 23 || day <= 1 ? 0.8 : 0;
+      entries.push(Object.assign({ date, weight: 62 + water }, day <= 4 ? { period: true } : {}));
+    }
+    const it = S.insights(entries, '2026-09-22').find((x) => x.id === 'cycle-weight');
+    assert.ok(it.ready);
+    assert.ok(it.strong);
+    assert.ok(it.diff > 0.3);
   });
 
   test('weeks: macros averaged per week', () => {

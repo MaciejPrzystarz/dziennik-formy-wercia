@@ -16,7 +16,7 @@
   const KEY_TOKEN = PREFIX + 'token';
   const API = 'https://api.github.com';
 
-  const ENTRY_FIELDS = ['weight', 'kcal', 'protein', 'fat', 'carbs', 'training', 'mood', 'sleep', 'sleepScore', 'note'];
+  const ENTRY_FIELDS = ['weight', 'kcal', 'protein', 'fat', 'carbs', 'training', 'mood', 'sleep', 'sleepScore', 'period', 'note'];
   // Macro targets in grams. Optional: without them macros are shown, just not judged.
   const MACRO_TARGETS = ['proteinTarget', 'fatTarget', 'carbsTarget'];
   // Key order in the file. The macro targets sit next to the calorie target.
@@ -122,6 +122,7 @@
     if (within(hours, LIMITS.sleep)) e.sleep = Math.round(hours * 100) / 100;
     const score = U.parseNumber(raw.sleepScore);
     if (within(score, LIMITS.sleepScore)) e.sleepScore = Math.round(score);
+    if (raw.period === true) e.period = true;
     if (typeof raw.note === 'string' && raw.note.trim()) e.note = raw.note.trim().slice(0, 280);
     Object.keys(raw).forEach((k) => {
       if (k === 'date' || ENTRY_FIELDS.includes(k)) return;
@@ -230,6 +231,7 @@
     if (e.mood != null) parts.push(`${e.mood}/5`);
     if (e.sleep != null) parts.push(`${e.sleep} h snu`);
     if (e.sleepScore != null) parts.push(`sen ${e.sleepScore}/100`);
+    if (e.period) parts.push('okres');
     if (!parts.length && e.note) parts.push('notatka');
     return parts.length ? `log: ${date} (${parts.join(', ')})` : `log: ${date}`;
   }
@@ -704,6 +706,7 @@
       weeklyTrainings: 3, trainings: DEFAULT_TRAININGS.slice()
     });
     const missed = new Set([8, 21, 22, 40]);
+    const periods = [5, 33, 61]; // first day of each period, 5 days long
     const plan = { 0: 'FBW A', 2: 'FBW B', 4: 'FBW A' };
     const entries = [];
     for (let i = 0; i < DAYS; i++) {
@@ -731,6 +734,7 @@
           e.carbs = Math.max(60, Math.round((e.kcal - 4 * e.protein - 9 * e.fat) / 4));
         }
       }
+      if (periods.some((p) => i >= p && i < p + 5)) e.period = true;
       entries.push(e);
     }
     const note = (test, text) => {

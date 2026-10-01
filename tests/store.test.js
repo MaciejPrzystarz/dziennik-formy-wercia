@@ -20,6 +20,14 @@
     });
   });
 
+  test('cleanEntry: period is true or missing, never false', () => {
+    assert.deepEqual(store.cleanEntry({ date: '2026-09-28', period: true }), { date: '2026-09-28', period: true });
+    assert.equal(store.cleanEntry({ date: '2026-09-28', period: false }), null);
+    assert.deepEqual(store.cleanEntry({ date: '2026-09-28', kcal: 1800, period: 'tak' }), { date: '2026-09-28', kcal: 1800 });
+    const text = store.serialize(store.normalize({ entries: [{ date: '2026-09-28', note: 'x', period: true, sleep: 7 }] }));
+    assert.ok(text.includes('{"date": "2026-09-28", "sleep": 7, "period": true, "note": "x"}'), 'key order from CLAUDE.md');
+  });
+
   test('cleanEntry: invalid date, out-of-range weight or nothing but a date', () => {
     assert.equal(store.cleanEntry({ date: '2026-02-30', weight: 60 }), null);
     assert.equal(store.cleanEntry({ date: '2026-09-28' }), null);
@@ -122,10 +130,10 @@
   test('entryMessage: commit message as described in CLAUDE.md', () => {
     const e = {
       date: '2026-09-28', weight: 62.4, kcal: 1650, protein: 110, fat: 55, carbs: 200,
-      training: 'FBW A', mood: 4, sleep: 7.5, sleepScore: 82, note: 'x'
+      training: 'FBW A', mood: 4, sleep: 7.5, sleepScore: 82, period: true, note: 'x'
     };
     assert.equal(store.entryMessage(e, e.date),
-      'log: 2026-09-28 (62.4 kg, 1650 kcal, B 110 g, T 55 g, W 200 g, FBW A, 4/5, 7.5 h snu, sen 82/100)');
+      'log: 2026-09-28 (62.4 kg, 1650 kcal, B 110 g, T 55 g, W 200 g, FBW A, 4/5, 7.5 h snu, sen 82/100, okres)');
     assert.equal(store.entryMessage({ date: '2026-09-28', note: 'x' }, '2026-09-28'), 'log: 2026-09-28 (notatka)');
     assert.equal(store.entryMessage(null, '2026-09-28'), 'log: usuń 2026-09-28');
   });

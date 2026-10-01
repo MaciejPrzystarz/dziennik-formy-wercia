@@ -21,7 +21,8 @@
       rule: cssVar('--rule'),
       protein: cssVar('--macro-protein'),
       fat: cssVar('--macro-fat'),
-      carbs: cssVar('--macro-carbs')
+      carbs: cssVar('--macro-carbs'),
+      periodBand: cssVar('--period-band')
     };
   }
 
@@ -89,6 +90,23 @@
     instances[canvas.id] = new Chart(canvas, config);
   }
 
+  // Soft vertical bands behind the lines on period days.
+  function periodBands(days, periods, color) {
+    return {
+      id: 'periodBands',
+      beforeDatasetsDraw(chart) {
+        const { ctx, chartArea: a, scales: { x } } = chart;
+        const w = (a.right - a.left) / Math.max(1, days.length);
+        ctx.save();
+        ctx.fillStyle = color;
+        days.forEach((d, i) => {
+          if (periods.has(d)) ctx.fillRect(x.getPixelForValue(i) - w / 2, a.top, w, a.bottom - a.top);
+        });
+        ctx.restore();
+      }
+    };
+  }
+
   function weight(canvas, vm, range) {
     const c = colors();
     const days = chartDays(vm.entries, range, vm.today);
@@ -111,8 +129,13 @@
       const v = item.dataset.label === 'Waga' ? U.fmtWeight(item.parsed.y) : U.fmt1(item.parsed.y);
       return ` ${item.dataset.label}: ${v} kg`;
     };
+    const periods = vm.cycle.periodDays;
+    options.plugins.tooltip.callbacks.afterTitle = (items) => (items.length && periods.has(days[items[0].dataIndex]) ? 'okres' : '');
+    const legend = canvas.closest('.panel').querySelector('[data-legend="period"]');
+    if (legend) legend.hidden = !days.some((d) => periods.has(d));
 
     draw(canvas, {
+      plugins: [periodBands(days, periods, c.periodBand)],
       type: 'line',
       data: {
         labels: days,

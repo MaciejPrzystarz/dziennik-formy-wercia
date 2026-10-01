@@ -102,7 +102,11 @@
       <span>Wercia</span>
     </div>
     <div class="topbar-actions">
-      <span class="streak" id="streak" hidden></span>
+      <button type="button" class="streak" id="streak" hidden>
+        <span class="streak-fire" aria-hidden="true">🔥</span>
+        <span class="streak-num" id="streak-num"></span>
+        <span class="streak-unit" id="streak-unit"></span>
+      </button>
       <button class="icon-btn" id="btn-settings" type="button" aria-label="Ustawienia" title="Ustawienia">
         <svg aria-hidden="true"><use href="#i-settings"/></svg>
       </button>
@@ -172,6 +176,7 @@
                 <span class="lg"><i class="sw sw-line" style="--c: var(--pink)"></i>średnia z 7 dni</span>
                 <span class="lg"><i class="sw sw-dot" style="--c: var(--black)"></i>pomiar</span>
                 <span class="lg"><i class="sw sw-dash" style="--c: var(--blue-line)"></i>plan</span>
+                <span class="lg" data-legend="period" hidden><i class="sw sw-sq" style="--c: var(--period-band); border-color: transparent"></i>okres</span>
               </div>
               <div class="chart-box">
                 <canvas id="chart-weight" role="img" aria-label="Wykres wagi: pomiary, średnia z 7 dni i plan"></canvas>
@@ -413,7 +418,7 @@
 
       <section class="settings-group" aria-labelledby="h-sync">
         <h3 id="h-sync">Synchronizacja z GitHubem</h3>
-        <p class="hint">Opcjonalna. Wpisy trafiają wtedy także do pliku JSON w repozytorium, więc są na każdym urządzeniu i Claude może je dopisywać z czatu. Plik w publicznym repozytorium widzi każdy, dlatego lepsze jest prywatne.</p>
+        <p class="hint">Wpisy trafiają do pliku <code>data/wercia.json</code> w repozytorium, więc są na każdym urządzeniu, a Claude i automaty GitHuba mogą je dopisywać i czytać. Repozytorium jest publiczne, żeby te automaty działały bez dodatkowych kluczy, więc dziennik widzi każdy, kto ma link.</p>
         <p class="hint" id="sync-status"></p>
         <form id="sync-form" novalidate>
           <div class="grid-2">
