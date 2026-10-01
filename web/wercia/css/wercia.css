@@ -36,10 +36,24 @@ body {
   margin: 0;
   min-height: 100vh;
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
-  background: var(--blush);
+  background: var(--black);
   color: var(--black);
   font: 600 16px/1.5 var(--font-ui);
   -webkit-font-smoothing: antialiased;
+}
+/* space: black sky, red and pink nebulae, kitties in helmets with claws out */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    url("../img/space.svg") 0 0 / 560px 560px,
+    radial-gradient(ellipse 60% 45% at 12% 18%, rgba(228, 0, 43, 0.38), transparent 70%),
+    radial-gradient(ellipse 55% 50% at 88% 60%, rgba(255, 92, 173, 0.26), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 30% 95%, rgba(228, 0, 43, 0.22), transparent 70%),
+    linear-gradient(180deg, #0B0006 0%, #1A0010 55%, #0B0006 100%);
+  pointer-events: none;
 }
 
 h1, h2, h3, p, ul, dl, dd, figure { margin: 0; }
@@ -120,8 +134,8 @@ a { color: inherit; text-underline-offset: 3px; }
   margin: 0 auto;
   padding: calc(10px + env(safe-area-inset-top)) calc(var(--pad) + env(safe-area-inset-right)) 10px calc(var(--pad) + env(safe-area-inset-left));
 }
-.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 26px; line-height: 1; }
-.brand-mark { width: 38px; height: 38px; flex: none; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 26px; line-height: 1; color: var(--white); text-shadow: 2px 2px 0 var(--red); }
+.brand-mark { width: 38px; height: 38px; flex: none; --logo-edge: var(--white); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .streak {
   padding: 5px 12px;
@@ -480,10 +494,11 @@ input[type="date"] { min-height: 49px; }
   font-weight: 400;
   font-size: 24px;
   line-height: 1.2;
-  box-shadow: 3px 3px 0 var(--pink);
+  border: 2px solid var(--pink);
+  box-shadow: 3px 3px 0 var(--red);
   transform: rotate(-1.5deg);
 }
-.block-note { color: var(--muted); font-size: 14px; font-weight: 800; }
+.block-note { color: var(--pink-soft); font-size: 14px; font-weight: 800; }
 .panel { padding: 14px 14px 12px; border: var(--line); border-radius: 18px; background: var(--white); box-shadow: 4px 4px 0 var(--black); }
 .caption { min-height: 1.5em; margin-top: 10px; color: var(--muted); font-size: 14px; font-weight: 700; }
 
@@ -650,6 +665,18 @@ button.wk-day { cursor: pointer; }
 .kcal-over { color: var(--red); font-weight: 900; }
 .kcal-under { color: var(--muted); }
 .none { color: var(--muted); font-weight: 700; }
+
+/* on the dark sky black shadows vanish, so cards cast red and pink ones and loose text goes light */
+.card { box-shadow: 6px 6px 0 var(--red); }
+.panel, .stat, .wk, .insight { box-shadow: 4px 4px 0 var(--pink); }
+.stat:nth-child(even) { box-shadow: 4px 4px 0 var(--red); }
+.block > .caption, .wk-head { color: var(--pink-soft); }
+.insight.is-pending { border-color: var(--pink); }
+.insight.is-pending h3, .insight.is-pending p { color: var(--pink-soft); }
+.badge-title { color: var(--white); }
+.badge.is-off .badge-title { color: var(--pink-soft); }
+.badge.is-on .badge-heart svg { filter: drop-shadow(2.5px 2.5px 0 var(--red)); }
+.stage { background-color: rgba(0, 0, 0, 0.72); }
 
 /* ---------- onboarding ---------- */
 
