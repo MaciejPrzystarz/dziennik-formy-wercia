@@ -1,0 +1,18 @@
+{
+  "settings": {
+    "name": "Wercia",
+    "startDate": "2026-10-01",
+    "startWeight": 69,
+    "targetWeight": 59,
+    "targetDate": "2027-03-18",
+    "kcalTarget": 1950,
+    "proteinTarget": 122,
+    "fatTarget": 54,
+    "carbsTarget": 244,
+    "weeklyTrainings": 3,
+    "trainings": ["FBW A", "FBW B", "Rower", "Bieganie", "Inne Cardio"]
+  },
+  "entries": [
+    {"date": "2026-10-01", "weight": 69}
+  ]
+}
