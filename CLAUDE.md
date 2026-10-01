@@ -78,8 +78,9 @@ jq -n --arg message "log: 2026-09-28 (84.2 kg, 2450 kcal)" --arg sha "$SHA" \
 
 ## Dziennik Wercii
 
-Strona w `web/wercia/` domyślnie trzyma dane w przeglądarce, nie w tym repozytorium. Jeśli Wercia włączy
-synchronizację, jej dane są w `data/wercia.json` w repozytorium podanym w jej ustawieniach. Format (z makro i celami
-makro), zasady edycji i zapis przez API są takie same jak dla `data/health.json`. Nie zapisuj jej danych w tym
-publicznym repo. Przy zmianach w `web/wercia/js/` uruchom jej testy: `tests/index.html` w przeglądarce albo
-`node tests/run.mjs`.
+Strona w `web/wercia/` (https://maciejprzystarz.github.io/dziennik-formy-wercia/) czyta dane z `data/wercia.json`
+w tym repozytorium (`web/wercia/config.js`). Repo jest publiczne i Wercia się na to zgodziła: każdy z linkiem widzi
+dziennik. Czytanie działa bez tokenu, a Wercia zapisuje wpisy z telefonu tokenem wklejonym w ustawieniach strony.
+Format (z makro i celami makro), zasady edycji i zapis przez API są takie same jak dla `data/health.json`; commit
+zmienia tylko `data/wercia.json`. Przy zmianach w `web/wercia/js/` uruchom jej testy: `tests/index.html`
+w przeglądarce albo `node tests/run.mjs`.

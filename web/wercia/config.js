@@ -1,9 +1,9 @@
-/* Opcjonalna synchronizacja z GitHubem. Domyślnie dane Wercii zostają w jej przeglądarce.
-   Jeśli uzupełnisz owner i repo, wystarczy potem wkleić token w ustawieniach strony.
-   Zalecane: osobne, prywatne repozytorium na dane. Tokenu tu NIE wpisuj: ten plik jest publiczny. */
+/* Skąd strona bierze dane: plik w tym (publicznym) repozytorium. Czytanie działa bez tokenu,
+   więc każdy z linkiem widzi dziennik. Zapis z telefonu: token wklejony raz w ustawieniach strony.
+   Tokenu tu NIE wpisuj: ten plik jest publiczny. */
 window.WERCIA_CONFIG = {
-  owner: '',
-  repo: '',
+  owner: 'MaciejPrzystarz',
+  repo: 'dziennik-formy-wercia',
   branch: 'main',
   dataPath: 'data/wercia.json'
 };

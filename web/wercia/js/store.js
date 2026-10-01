@@ -456,7 +456,14 @@
 
   async function runSync() {
     const cfg = getConfig();
-    if (!cfg || !getToken()) return;
+    if (!cfg) return;
+    if (!getToken()) {
+      if (readOutbox().length) {
+        setSync('error', new StoreError('auth', 'Wklej token GitHuba w ustawieniach, żeby wpisy poszły na GitHuba.'));
+        emit('sync');
+      }
+      return;
+    }
     const gen = generation;
     if (!readOutbox().length) {
       setSync('idle');
@@ -518,7 +525,8 @@
     if (state.mode === 'demo') return state;
     state.data = readLocalData() || normalize({});
     const cfg = getConfig();
-    if (cfg && getToken()) {
+    // A public repo reads without a token, so anyone with the link sees the data; writing needs one.
+    if (cfg) {
       state.mode = 'github';
       try {
         const file = await fetchFile(cfg);
