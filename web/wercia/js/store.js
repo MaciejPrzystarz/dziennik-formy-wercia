@@ -603,6 +603,8 @@
   }
 
   const needsSetup = () => state.mode !== 'demo' && !isSetUp(state.data.settings);
+  // Reading the repo file needs no token, writing to it does.
+  const canWrite = () => state.mode !== 'github' || !!getToken();
 
   function exportText() {
     return serialize(state.data);
@@ -759,7 +761,7 @@
 
   DF.store = {
     ENTRY_FIELDS, MACRO_TARGETS, LIMITS, DEFAULT_TRAININGS, StoreError, state,
-    load, refresh, onChange, setEntry, deleteEntry, saveSettings, setup, needsSetup, isSetUp,
+    load, refresh, onChange, setEntry, deleteEntry, saveSettings, setup, needsSetup, isSetUp, canWrite,
     exportText, importText, connect, disconnect, resetAll, syncNow, enterDemo, exitDemo,
     getConfig, getToken, fileUrl, pendingCount: () => readOutbox().length,
     normalize, normalizeSettings, cleanEntry, serialize, parse, applyOp, entryMessage, settingsMessage, commitMessage, demoData

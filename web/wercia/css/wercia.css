@@ -35,7 +35,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
-  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
   background: var(--black);
   color: var(--black);
   font: 600 16px/1.5 var(--font-ui);
@@ -764,10 +764,34 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.55); }
 
 /* ---------- toasts, confetti ---------- */
 
+/* "Dodaj wpis": always in thumb reach on the phone */
+.fab {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 58px;
+  padding: 0 22px 0 18px;
+  border: var(--line);
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--black);
+  font-family: var(--font-display);
+  font-size: 19px;
+  box-shadow: 4px 4px 0 var(--red);
+  cursor: pointer;
+}
+.fab:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--red); }
+.fab svg { width: 22px; height: 22px; }
+body.is-onboarding .fab { display: none; }
+
 .toasts {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(92px + env(safe-area-inset-bottom));
   z-index: 40;
   display: grid;
   gap: 10px;

@@ -186,6 +186,9 @@
     streak.hidden = n < 2;
     streak.textContent = `🔥 ${n} ${n === 1 ? 'dzień' : 'dni'}`;
     streak.title = `Dni z wpisem bez przerwy. Rekord: ${vm.streak.best}.`;
+    const writable = store.canWrite();
+    $('#today').hidden = !writable;
+    $('#fab').hidden = !writable;
     renderBanner();
   }
 
@@ -203,6 +206,10 @@
       const err = st.error || st.sync.error;
       kind = 'error';
       text = `Wpisy są zapisane tutaj, ale nie idą na GitHuba. ${err ? err.message : ''}`;
+      label = 'Ustawienia';
+      action = openSettings;
+    } else if (!store.canWrite()) {
+      text = 'Tylko podgląd. Dodaj token w ustawieniach, żeby zapisywać.';
       label = 'Ustawienia';
       action = openSettings;
     }
@@ -1016,6 +1023,10 @@
   // ---------- sheet for other days ----------
 
   function openEntry(date) {
+    if (!store.canWrite()) {
+      toast('Tylko podgląd. Dodaj token w ustawieniach, żeby zapisywać.');
+      return;
+    }
     const d = date || U.addDays(U.todayKey(), -1);
     const input = $('#s-date');
     input.max = U.todayKey();
@@ -1489,6 +1500,7 @@
 
     $('#btn-settings').addEventListener('click', openSettings);
     $('#btn-other-day').addEventListener('click', () => openEntry());
+    $('#fab').addEventListener('click', () => openEntry(U.todayKey()));
     $('#today-state').addEventListener('click', () => { if (store.state.sync.status === 'error') openSettings(); });
     $('#btn-more').addEventListener('click', () => { ui.logLimit += 30; renderLog(ui.vm); });
     $('#btn-weeks-more').addEventListener('click', () => { ui.weekLimit += 8; renderWeeks(ui.vm); });
@@ -1504,7 +1516,7 @@
     const openDay = (ev) => {
       const el = ev.target.closest('[data-date]');
       if (!el) return;
-      if (el.dataset.date === U.todayKey()) {
+      if (el.dataset.date === U.todayKey() && store.canWrite()) {
         $('#today').scrollIntoView({ behavior: 'smooth', block: 'start' });
         todayForm.focusWeight();
       } else {
