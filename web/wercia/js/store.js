@@ -3,7 +3,10 @@
    Optional: a JSON file in a GitHub repo, connected in settings with a token. Every change is
    still written locally first, then queued in an outbox and sent in the background. The outbox
    survives reloads and lost connections, and each send re-reads the file and applies only the
-   queued changes, so edits made elsewhere (another phone, Claude in chat) are kept. */
+   queued changes, so edits made elsewhere (another phone, Claude in chat) are kept.
+   On GitHub the page and Claude write to a working branch (`staging`, default "bufor"), not to main.
+   Every Sunday at 10:00 a workflow moves the finished week (Sunday to Saturday) to main as one
+   commit (weeklyMerge below) and rebuilds the working branch on top of it. */
 (function (DF) {
   'use strict';
 
@@ -15,6 +18,7 @@
   const KEY_GITHUB = PREFIX + 'github';
   const KEY_TOKEN = PREFIX + 'token';
   const API = 'https://api.github.com';
+  const DEFAULT_STAGING = 'bufor';
 
   const ENTRY_FIELDS = ['weight', 'kcal', 'protein', 'fat', 'carbs', 'training', 'mood', 'sleep', 'sleepScore', 'period', 'note'];
   // Macro targets in grams. Optional: without them macros are shown, just not judged.
@@ -271,6 +275,8 @@
           owner: c.owner.trim(),
           repo: c.repo.trim(),
           branch: (typeof c.branch === 'string' && c.branch.trim()) || 'main',
+          // the same as `branch` means saving straight to main, one commit per save
+          staging: (typeof c.staging === 'string' && c.staging.trim()) || DEFAULT_STAGING,
           path: ((typeof c.path === 'string' && c.path.trim()) || (typeof c.dataPath === 'string' && c.dataPath.trim()) || 'data/wercia.json').replace(/^\/+/, '')
         };
       }
@@ -283,15 +289,16 @@
       owner: cfg.owner.trim(),
       repo: cfg.repo.trim(),
       branch: (cfg.branch || '').trim() || 'main',
+      staging: (cfg.staging || '').trim() || DEFAULT_STAGING,
       path: ((cfg.path || '').trim() || 'data/wercia.json').replace(/^\/+/, '')
     }));
   }
 
   const getToken = () => (readLocal(KEY_TOKEN) || '').trim();
 
-  function fileUrl(cfg) {
+  function fileUrl(cfg, branch = cfg.branch) {
     const path = cfg.path.split('/').map(encodeURIComponent).join('/');
-    return `https://github.com/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/blob/${encodeURIComponent(cfg.branch)}/${path}`;
+    return `https://github.com/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/blob/${encodeURIComponent(branch)}/${path}`;
   }
 
   // ---------- GitHub Contents API ----------
@@ -312,12 +319,14 @@
     return btoa(bin);
   }
 
+  const repoUrl = (cfg) => `${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`;
+
   function contentsUrl(cfg) {
     const path = cfg.path.split('/').map(encodeURIComponent).join('/');
-    return `${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path}`;
+    return `${repoUrl(cfg)}/contents/${path}`;
   }
 
-  async function httpError(res, cfg, method) {
+  async function httpError(res, cfg, method, branch = cfg.branch) {
     let detail = '';
     try { detail = (await res.json()).message || ''; } catch (_) { /* body isn't JSON */ }
     const s = res.status;
@@ -331,7 +340,7 @@
       return new StoreError('forbidden', `Token nie ma dostępu do ${cfg.owner}/${cfg.repo}. Potrzebne: Only select repositories → ${cfg.repo} i Contents: Read and write.`, s);
     }
     if (s === 404) {
-      const where = `${cfg.path} w ${cfg.owner}/${cfg.repo} (gałąź ${cfg.branch})`;
+      const where = `${cfg.path} w ${cfg.owner}/${cfg.repo} (gałąź ${branch})`;
       return new StoreError('not-found', method === 'GET'
         ? `Nie ma jeszcze pliku ${where}. Pierwszy zapis go utworzy.`
         : `Nie można zapisać do ${where}. Sprawdź nazwę repozytorium i gałęzi oraz dostęp tokenu.`, s);
@@ -343,12 +352,11 @@
     return new StoreError('http', `GitHub zwrócił błąd ${s}${detail ? `: ${detail}` : ''}.`, s);
   }
 
-  async function request(cfg, method, body) {
+  async function request(cfg, method, url, body, branch) {
     const headers = { Accept: 'application/vnd.github+json' };
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body) headers['Content-Type'] = 'application/json';
-    const url = contentsUrl(cfg) + (method === 'GET' ? `?ref=${encodeURIComponent(cfg.branch)}` : '');
     let res;
     try {
       res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
@@ -356,24 +364,45 @@
       throw new StoreError('network', 'Brak internetu. Wpisy są zapisane w telefonie i pójdą, gdy wróci połączenie.');
     }
     if (res.ok) return res.json();
-    throw await httpError(res, cfg, method);
+    throw await httpError(res, cfg, method, branch);
   }
 
-  async function fetchFile(cfg) {
-    const json = await request(cfg, 'GET');
+  async function fetchBranchFile(cfg, branch) {
+    const json = await request(cfg, 'GET', `${contentsUrl(cfg)}?ref=${encodeURIComponent(branch)}`, null, branch);
     if (Array.isArray(json) || json.type !== 'file') {
       throw new StoreError('invalid', `${cfg.path} w repozytorium nie jest plikiem.`);
     }
     if (typeof json.content !== 'string' || (json.content === '' && json.size > 0)) {
       throw new StoreError('invalid', `${cfg.path} jest za duży dla GitHub Contents API (limit 1 MB).`);
     }
-    return { data: parse(decodeBase64(json.content), cfg.path), sha: json.sha };
+    return { data: parse(decodeBase64(json.content), cfg.path), sha: json.sha, branch };
+  }
+
+  // The working branch first. Before the first save it doesn't exist yet, so main is read instead.
+  async function fetchFile(cfg) {
+    if (cfg.staging === cfg.branch) return fetchBranchFile(cfg, cfg.branch);
+    try {
+      return await fetchBranchFile(cfg, cfg.staging);
+    } catch (err) {
+      if (err.kind !== 'not-found') throw err;
+      return fetchBranchFile(cfg, cfg.branch);
+    }
+  }
+
+  // Working branch from the current tip of main. A branch that appeared in the meantime is fine.
+  async function createStaging(cfg) {
+    const ref = await request(cfg, 'GET', `${repoUrl(cfg)}/git/ref/heads/${encodeURIComponent(cfg.branch)}`);
+    try {
+      await request(cfg, 'POST', `${repoUrl(cfg)}/git/refs`, { ref: `refs/heads/${cfg.staging}`, sha: ref.object.sha }, cfg.staging);
+    } catch (err) {
+      if (!(err.kind === 'invalid' && /already exists/i.test(err.message))) throw err;
+    }
   }
 
   function putFile(cfg, text, sha, message) {
-    const body = { message, content: encodeBase64(text), branch: cfg.branch };
+    const body = { message, content: encodeBase64(text), branch: cfg.staging };
     if (sha) body.sha = sha;
-    return request(cfg, 'PUT', body);
+    return request(cfg, 'PUT', contentsUrl(cfg), body, cfg.staging);
   }
 
   // ---------- state ----------
@@ -480,7 +509,7 @@
           fresh = await fetchFile(cfg);
         } catch (err) {
           if (err.kind !== 'not-found') throw err;
-          fresh = { data: normalize({}), sha: null };
+          fresh = { data: normalize({}), sha: null, branch: null };
         }
         if (gen !== generation) return;
         const ops = readOutbox();
@@ -488,6 +517,7 @@
         let sha = fresh.sha;
         if (!fresh.sha || serialize(next) !== serialize(fresh.data)) {
           try {
+            if (fresh.branch !== cfg.staging) await createStaging(cfg);
             const res = await putFile(cfg, serialize(next), fresh.sha, commitMessage(ops, next));
             sha = res && res.content ? res.content.sha : null;
           } catch (err) {
@@ -683,6 +713,41 @@
     emit('load');
   }
 
+  // ---------- weekly commit to main ----------
+
+  // The finished week on a given day: Sunday to the last Saturday before `today`.
+  // On Sunday 2026-10-11 that is 2026-10-04 to 2026-10-10.
+  function weekWindow(today) {
+    const end = U.addDays(U.weekStart(today), -1); // the Saturday before the current week
+    return { start: U.addDays(end, -6), end };
+  }
+
+  // main + the working branch → the new main. Days up to `end` and the settings come from the working
+  // branch (so edits and deletions of older days come along too), later days stay as they are on main
+  // and wait for their own week.
+  function weeklyMerge(main, staged, end) {
+    const data = normalize(Object.assign({}, staged, {
+      entries: [...staged.entries.filter((e) => e.date <= end), ...main.entries.filter((e) => e.date > end)]
+    }));
+    const line = (d) => new Map(d.entries.filter((e) => e.date <= end).map((e) => [e.date, JSON.stringify(e)]));
+    const before = line(main);
+    const after = line(data);
+    const days = [...new Set([...before.keys(), ...after.keys()])]
+      .filter((k) => before.get(k) !== after.get(k))
+      .sort();
+    const settings = JSON.stringify(main.settings) !== JSON.stringify(data.settings);
+    return { data, days, settings, changed: serialize(data) !== serialize(main) };
+  }
+
+  function weeklyMessage(win, merged) {
+    const inWeek = merged.data.entries.filter((e) => e.date >= win.start && e.date <= win.end).length;
+    const older = merged.days.filter((d) => d < win.start);
+    const parts = [`${inWeek} ${U.plural(inWeek, 'dzień', 'dni', 'dni')} z wpisem`];
+    if (older.length) parts.push(`poprawki: ${older.join(', ')}`);
+    if (merged.settings) parts.push('cele');
+    return `log: tydzień ${win.start} – ${win.end} (${parts.join(', ')})`;
+  }
+
   // ---------- demo (?demo in the address) ----------
 
   function mulberry32(seed) {
@@ -768,6 +833,7 @@
     load, refresh, onChange, setEntry, deleteEntry, saveSettings, setup, needsSetup, isSetUp, canWrite,
     exportText, importText, connect, disconnect, resetAll, syncNow, enterDemo, exitDemo,
     getConfig, getToken, fileUrl, pendingCount: () => readOutbox().length,
-    normalize, normalizeSettings, cleanEntry, serialize, parse, applyOp, entryMessage, settingsMessage, commitMessage, demoData
+    normalize, normalizeSettings, cleanEntry, serialize, parse, applyOp, entryMessage, settingsMessage, commitMessage, demoData,
+    weekWindow, weeklyMerge, weeklyMessage
   };
 })(window.DF = window.DF || {});

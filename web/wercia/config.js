@@ -5,5 +5,6 @@ window.WERCIA_CONFIG = {
   owner: 'MaciejPrzystarz',
   repo: 'dziennik-formy-wercia',
   branch: 'main',
-  dataPath: 'data/wercia.json'
+  dataPath: 'data/wercia.json',
+  staging: 'bufor' // tu zapisuje strona i Claude; do main co niedzielę o 10:00 (.github/workflows/weekly.yml)
 };

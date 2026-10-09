@@ -156,4 +156,37 @@
     assert.ok(a.entries.some((e) => DF.stats.macroKcal(e) != null), 'demo has macros');
     assert.ok(a.entries.every((e) => !e.training || a.settings.trainings.includes(e.training)), 'only trainings from the settings');
   });
+
+  test('weekWindow: Sunday to the last Saturday before the given day', () => {
+    assert.deepEqual(store.weekWindow('2026-10-11'), { start: '2026-10-04', end: '2026-10-10' }); // Sunday
+    assert.deepEqual(store.weekWindow('2026-10-14'), { start: '2026-10-04', end: '2026-10-10' }); // Wednesday
+    assert.deepEqual(store.weekWindow('2026-10-17'), { start: '2026-10-04', end: '2026-10-10' }); // Saturday: week not over
+    assert.deepEqual(store.weekWindow('2026-10-25'), { start: '2026-10-18', end: '2026-10-24' }); // DST change day
+  });
+
+  test('weeklyMerge: the finished week moves to main, later days wait', () => {
+    const main = store.normalize({
+      settings: { kcalTarget: 1950 },
+      entries: [{ date: '2026-10-01', weight: 69 }, { date: '2026-10-02', weight: 69.2 }]
+    });
+    const staged = store.normalize({
+      settings: { kcalTarget: 1900 },
+      entries: [
+        { date: '2026-10-01', weight: 70.01 }, // older day corrected
+        // 2026-10-02 deleted
+        { date: '2026-10-04', weight: 69.5, period: true },
+        { date: '2026-10-10', kcal: 1800 },
+        { date: '2026-10-11', weight: 69 } // Sunday of the next week
+      ]
+    });
+    const m = store.weeklyMerge(main, staged, '2026-10-10');
+    assert.deepEqual(m.data.entries.map((e) => e.date), ['2026-10-01', '2026-10-04', '2026-10-10']);
+    assert.equal(m.data.entries[0].weight, 70.01);
+    assert.equal(m.data.entries[1].period, true);
+    assert.equal(m.data.settings.kcalTarget, 1900);
+    assert.deepEqual(m.days, ['2026-10-01', '2026-10-02', '2026-10-04', '2026-10-10']);
+    assert.equal(store.weeklyMessage({ start: '2026-10-04', end: '2026-10-10' }, m),
+      'log: tydzień 2026-10-04 – 2026-10-10 (2 dni z wpisem, poprawki: 2026-10-01, 2026-10-02, cele)');
+    assert.ok(!store.weeklyMerge(m.data, staged, '2026-10-10').changed, 'second run changes nothing');
+  });
 })();

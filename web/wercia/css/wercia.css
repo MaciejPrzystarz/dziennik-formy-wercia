@@ -596,6 +596,8 @@ input[type="date"] { min-height: 49px; }
 
 /* weeks */
 .weeks, .logbook { margin-top: 48px; }
+/* Long lists below the fold: the browser skips their layout and painting until they scroll into view. */
+.weeks, .logbook { content-visibility: auto; contain-intrinsic-size: auto 900px; }
 .wk-head, .wk-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .wk-head { margin: 0 0 6px auto; width: min(100%, 470px); color: var(--muted); font-size: 12px; font-weight: 800; text-align: center; }
 .wk {

@@ -1,8 +1,10 @@
 # Dziennik formy Wercii: zasady dla Claude'a
 
-Dane: `data/wercia.json`. To jedyne źródło prawdy dla strony w `web/wercia/`
+Dane: `data/wercia.json` na gałęzi `bufor`. To aktualna wersja dla strony w `web/wercia/`
 (https://maciejprzystarz.github.io/dziennik-formy-wercia/, repo i plik ustawione w `web/wercia/config.js`).
-Strona zapisuje ten sam plik przez GitHub API, więc przed każdą zmianą pobierz jego aktualną wersję.
+Strona czyta i zapisuje ten plik przez GitHub API, więc przed każdą zmianą pobierz jego aktualną wersję. `main` dostaje
+dane tylko raz w tygodniu (niżej, „Cotygodniowy commit”), więc między niedzielami jest w tyle. Gdy gałęzi `bufor` jeszcze
+nie ma, czytaj z `main`, a przed zapisem utwórz `bufor` z `main` (krok 0 niżej).
 
 Repo jest publiczne celowo: GitHub Actions i Claude mogą wtedy czytać i aktualizować dane bez dodatkowych kluczy.
 Wercia się na to zgodziła, każdy z linkiem widzi dziennik. Czytanie działa bez tokenu, a Wercia zapisuje wpisy
@@ -17,7 +19,7 @@ Przykłady: „dziś 62,4, 1850 kcal, FBW A, 4/5”, „wczoraj rower 40 km, sam
 
 1. Ustal datę (dziś, wczoraj, konkretny dzień; strefa Europe/Warsaw). Jeśli nie wynika z wiadomości, zapytaj.
 2. Znajdź wpis z tą datą. Jest: zmień tylko pola podane teraz, resztę zostaw. Nie ma: dodaj nowy wpis.
-3. Zapisz plik, zrób commit i push (albo PUT przez API, niżej).
+3. Zapisz plik na gałęzi `bufor`: commit i push na `bufor` (albo PUT przez API, niżej). Nigdy bezpośrednio na `main`.
 4. Odpowiedz jedną linią: co zapisano. Na prośbę policz średnią z 7 dni lub zmianę z pliku.
 
 ## Format
@@ -58,15 +60,25 @@ zważyć się rano), brak kalorii przerywa. Dzisiejszy dzień nie przerywa serii
   które ma wpis, w tej kolejności.
 - Usunięcie: `log: usuń 2026-09-28`
 - Cele: `settings: cel 59 kg do 2027-03-18, 1950 kcal, B 122 g, T 54 g, W 244 g, 3 treningi/tydz.` (cele makro tylko te, które są).
-- Gałąź `main`. Zmieniaj tylko `data/wercia.json`, chyba że użytkownik prosi o zmiany w aplikacji.
+- Dane: gałąź `bufor`. Zmieniaj tylko `data/wercia.json`, chyba że użytkownik prosi o zmiany w aplikacji. Zmiany
+  aplikacji (`web/`, `tests/`, `scripts/`, `.github/`) idą na `main`.
 - Przy zmianach w `web/wercia/js/` uruchom testy: `tests/index.html` w przeglądarce albo `node tests/run.mjs`.
+
+## Cotygodniowy commit
+
+W niedzielę o 10:00 (Europe/Warsaw) `.github/workflows/weekly.yml` przenosi zakończony tydzień z `bufor` na `main` jednym
+commitem: tydzień to niedziela–sobota przed tą niedzielą (11.10.2026 → 2026-10-04 do 2026-10-10). Razem z nim idą
+poprawki starszych dni i zmiany celów. Dni od niedzieli włącznie zostają na `bufor` do kolejnego tygodnia. Potem `bufor`
+jest przebudowywany na nowym `main` (stare commity zapisów znikają). Commit: `log: tydzień 2026-10-04 – 2026-10-10 (7 dni
+z wpisem, poprawki: 2026-10-01, cele)`. Logika: `weekWindow` i `weeklyMerge` w `web/wercia/js/store.js`, skrypt
+`scripts/weekly-commit.mjs`. Ręcznie: Actions → Weekly commit → Run workflow (powtórne uruchomienie nic nie psuje).
+Tygodnie na stronie (kalendarz, mapa treningów) też liczą się od niedzieli do soboty.
 
 ## Cotygodniowe podsumowanie
 
-Zaplanowane zadania „Dziennik formy: podsumowanie tygodnia” (niedziela 20:00 i ponowienia w poniedziałek) dotyczą
-dziennika Maćka: czytają repo `dziennik-formy` i jego `data/health.json`, nie to repo. Dla Wercii nie ma teraz
-takiego zadania. Gdyby powstało, ma czytać `data/wercia.json` z repo `dziennik-formy-wercia` i liczyć kodem
-z `web/wercia/js/` (jak `tests/run.mjs`). Tylko czyta dane, nic nie zapisuje w repo.
+W niedzielę o 10:00 (Europe/Warsaw) zaplanowane zadanie „Dziennik Wercii: podsumowanie tygodnia” czyta `data/wercia.json`
+z gałęzi `bufor` tego repo, liczy kodem z `web/wercia/js/` (jak `tests/run.mjs`) i wysyła jeden mail z podsumowaniem tego
+samego tygodnia co commit (niedziela–sobota), razem z analizą cyklu. Tylko czyta dane, nic nie zapisuje w repo.
 
 ## Zapis przez GitHub API (bez lokalnego repo)
 
@@ -74,11 +86,18 @@ Wymaga tokenu fine-grained z uprawnieniem Contents: Read and write do tego repoz
 
 ```bash
 OWNER=MaciejPrzystarz REPO=dziennik-formy-wercia TOKEN=<token>
-API="https://api.github.com/repos/$OWNER/$REPO/contents/data/wercia.json"
+REPO_API="https://api.github.com/repos/$OWNER/$REPO"
+API="$REPO_API/contents/data/wercia.json"
 H=(-H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json")
 
+# 0. gałąź bufor, jeśli jej nie ma (422 „Reference already exists” = już jest, w porządku)
+if [ "$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" "$REPO_API/git/ref/heads/bufor")" = 404 ]; then
+  MAIN=$(curl -s "${H[@]}" "$REPO_API/git/ref/heads/main" | jq -r .object.sha)
+  curl -s -X POST "${H[@]}" "$REPO_API/git/refs" -d "{\"ref\": \"refs/heads/bufor\", \"sha\": \"$MAIN\"}" > /dev/null
+fi
+
 # 1. aktualny plik i sha, zawsze tuż przed zapisem
-curl -s "${H[@]}" "$API?ref=main" > resp.json
+curl -s "${H[@]}" "$API?ref=bufor" > resp.json
 SHA=$(jq -r .sha resp.json)
 jq -r .content resp.json | base64 -d > wercia.json
 
@@ -87,8 +106,9 @@ jq -r .content resp.json | base64 -d > wercia.json
 # 3. zapis
 jq -n --arg message "log: 2026-09-28 (62.4 kg, 1850 kcal)" --arg sha "$SHA" \
       --arg content "$(base64 -w0 wercia.json)" \
-      '{message: $message, content: $content, sha: $sha, branch: "main"}' |
+      '{message: $message, content: $content, sha: $sha, branch: "bufor"}' |
   curl -s -X PUT "${H[@]}" "$API" -d @- | jq -r '.commit.html_url // .message'
 ```
 
-409 lub 422 z informacją o `sha` oznacza, że plik zmienił się w międzyczasie: powtórz od kroku 1.
+409 lub 422 z informacją o `sha` oznacza, że plik zmienił się w międzyczasie (np. niedzielna przebudowa `bufor`):
+powtórz od kroku 1.
