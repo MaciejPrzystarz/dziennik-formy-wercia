@@ -199,7 +199,8 @@
     renderChrome(vm);
     renderStage(vm, anim);
     renderTodayHead(vm);
-    renderWeek(vm);
+    renderTiles(vm);
+    renderMoodDetail(vm);
     renderCharts(vm);
     renderWeeks(vm);
     renderHeatmap(vm);
@@ -357,84 +358,193 @@
     $('#today-date').textContent = `${WEEKDAYS_LONG[U.weekdayIndex(vm.today)]}, ${U.fmtLong(vm.today, false)}`;
   }
 
-  function renderWeek(vm) {
+  // ---------- tiles and detail cards ----------
+  // One tile per topic: the number that matters, a small picture of the last days, and a colour for
+  // how it's going. Tapping a tile opens its detail card (the charts and lists live there).
+
+  const last7 = (vm) => U.dayRange(U.addDays(vm.today, -6), vm.today);
+
+  function sparkline(values) {
+    const pts = values.map((v, i) => [i, v]).filter(([, v]) => v != null);
+    if (pts.length < 2) return '';
+    const ys = pts.map(([, v]) => v);
+    const lo = Math.min(...ys);
+    const span = Math.max(...ys) - lo || 1;
+    const W = 120;
+    const H = 34;
+    const n = Math.max(1, values.length - 1);
+    const d = pts.map(([i, v], k) => `${k ? 'L' : 'M'}${((i / n) * W).toFixed(1)} ${(H - 4 - ((v - lo) / span) * (H - 8)).toFixed(1)}`).join('');
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}"/></svg>`;
+  }
+
+  // Seven little bars (oldest to today) against a target line; 'is-hi' marks the days that need attention.
+  function miniBars(values, target, cls) {
+    const max = Math.max(target || 0, ...values.filter((v) => v != null)) * 1.08 || 1;
+    const bars = values.map((v) => (v == null
+      ? '<i class="is-empty"></i>'
+      : `<i class="${cls(v)}" style="height:${Math.max(6, (v / max) * 100).toFixed(1)}%"></i>`)).join('');
+    const line = target ? `<b style="bottom:${((target / max) * 100).toFixed(1)}%"></b>` : '';
+    return `<span class="bars" aria-hidden="true">${bars}${line}</span>`;
+  }
+
+  const meter = (ratio) => `<span class="meter" aria-hidden="true"><i style="width:${(U.clamp(ratio, 0, 1) * 100).toFixed(1)}%"></i></span>`;
+
+  function tile(t) {
+    return `<button type="button" class="tile tone-${t.tone}" data-detail="${t.detail}" aria-haspopup="dialog">` +
+      `<span class="tile-label">${esc(t.label)}</span>` +
+      `<span class="tile-value">${t.value}</span>` +
+      (t.viz ? `<span class="tile-viz">${t.viz}</span>` : '') +
+      `<span class="tile-sub">${esc(t.sub)}</span>` +
+      '</button>';
+  }
+
+  function renderTiles(vm) {
     const s = vm.settings;
-    const done = vm.week.trainings;
-    const slotsCount = Math.max(s.weeklyTrainings, done.length);
-    const slots = Array.from({ length: slotsCount }, (_, i) => {
-      const e = done[i];
-      return e
-        ? `<i class="slot t-${trainingColor(e.training, s)}" title="${esc(`${U.fmtDay(e.date)}: ${e.training}`)}"></i>`
-        : '<i class="slot is-open"></i>';
-    }).join('');
-    const left = s.weeklyTrainings - done.length;
-    const trainSub = s.weeklyTrainings === 0 ? 'bez celu tygodniowego' : left > 0 ? `jeszcze ${left}` : 'komplet w tym tygodniu';
+    const days = last7(vm);
+    const tiles = [];
 
+    // Weight: 7-day average, pace and the plan
+    const ma = S.movingAverage(vm.entries);
+    const trendLine = U.dayRange(U.addDays(vm.today, -27), vm.today).map((d) => (ma.has(d) ? ma.get(d) : null));
+    const perWeek = vm.slopeDay != null ? vm.slopeDay * 7 : null;
+    const d = vm.planDiff;
+    const planText = d == null ? '' : Math.abs(d) < 0.1 ? 'równo z planem' : d < 0 ? `${U.fmt1(-d)} kg przed planem` : `${U.fmt1(d)} kg za planem`;
+    tiles.push({
+      detail: 'd-weight', label: 'Waga',
+      tone: d == null ? 'plain' : d <= -0.1 ? 'blue' : d >= 0.3 ? 'red' : 'pink',
+      value: vm.prog.trend != null ? `${U.fmt1(vm.prog.trend)}<small>kg</small>` : '–',
+      viz: sparkline(trendLine),
+      sub: [perWeek != null ? `${U.signed(perWeek)} kg/tydz.` : 'za mało pomiarów', planText].filter(Boolean).join(', ')
+    });
+
+    // Calories: 7-day average against the target
     const k = vm.kcal;
-    const kcalState = k ? S.kcalState(k.avg, s.kcalTarget) : null;
-    const kcalValue = k ? `${U.fmtInt(k.avg)}<small>kcal</small>` : '–';
-    const kcalSub = k ? `średnia 7 dni, w celu ${k.ok} z ${k.logged} ${k.logged === 1 ? 'dnia' : 'dni'}` : 'brak kalorii z 7 dni';
+    const kState = k ? S.kcalState(k.avg, s.kcalTarget) : null;
+    const kcalDays = days.map((key) => { const e = vm.byDate.get(key); return e && typeof e.kcal === 'number' ? e.kcal : null; });
+    tiles.push({
+      detail: 'd-kcal', label: 'Kalorie',
+      tone: !k ? 'plain' : kState === 'over' ? 'red' : kState === 'ok' ? 'pink' : 'blue',
+      value: k ? `${U.fmtInt(k.avg)}<small>kcal</small>` : '–',
+      viz: miniBars(kcalDays, s.kcalTarget, (v) => (S.kcalState(v, s.kcalTarget) === 'over' ? 'is-hi' : '')),
+      sub: k ? `średnia 7 dni, w celu ${k.ok} z ${k.logged}` : 'brak kalorii z 7 dni'
+    });
 
+    // Protein (and the rest of the macros underneath)
     const mc = vm.macros;
     const protein = mc && mc.protein;
-    const proteinValue = protein ? `${U.fmtInt(protein.avg)}<small>g</small>` : '–';
     const proteinLow = !!(protein && s.proteinTarget && protein.count >= 4 && protein.avg < s.proteinTarget * 0.85);
     const rest = mc ? macroLine({ fat: mc.fat && mc.fat.avg, carbs: mc.carbs && mc.carbs.avg }) : '';
-    const proteinSub = !mc
-      ? 'brak makro z 7 dni'
-      : [s.proteinTarget ? `cel ${U.fmtInt(s.proteinTarget)} g` : 'średnia 7 dni', rest].filter(Boolean).join(', ');
+    tiles.push({
+      detail: 'd-macro', label: 'Białko',
+      tone: !protein ? 'plain' : proteinLow ? 'red' : s.proteinTarget && protein.avg >= s.proteinTarget * 0.95 ? 'pink' : 'blush',
+      value: protein ? `${U.fmtInt(protein.avg)}<small>g</small>` : '–',
+      viz: protein && s.proteinTarget ? meter(protein.avg / s.proteinTarget) : '',
+      sub: !mc ? 'brak makro z 7 dni' : [s.proteinTarget ? `cel ${U.fmtInt(s.proteinTarget)} g` : 'średnia 7 dni', rest].filter(Boolean).join(', ')
+    });
 
-    const perWeek = vm.slopeDay != null ? vm.slopeDay * 7 : null;
-    const planDays = Math.max(1, U.diffDays(s.startDate, s.targetDate));
-    const planWeek = ((s.targetWeight - s.startWeight) / planDays) * 7;
-    const paceValue = perWeek != null ? `${U.signed(perWeek)}<small>kg/tydz.</small>` : '–';
-    const paceSub = perWeek != null ? `ostatnie 3 tygodnie, plan ${U.signed(planWeek, U.fmt2)}` : 'za mało pomiarów';
+    // Trainings this week
+    const done = vm.week.trainings;
+    const slotsCount = Math.max(s.weeklyTrainings, done.length);
+    const slots = Array.from({ length: slotsCount }, (_, i) => (done[i]
+      ? `<i class="slot t-${trainingColor(done[i].training, s)}"></i>`
+      : '<i class="slot is-open"></i>')).join('');
+    const left = s.weeklyTrainings - done.length;
+    tiles.push({
+      detail: 'd-train', label: 'Treningi',
+      tone: s.weeklyTrainings > 0 && left <= 0 ? 'pink' : 'plain',
+      value: `${done.length}<small>/${s.weeklyTrainings}</small>`,
+      viz: `<span class="slots" aria-hidden="true">${slots}</span>`,
+      sub: s.weeklyTrainings === 0 ? 'bez celu tygodniowego' : left > 0 ? `jeszcze ${left} w tym tygodniu` : 'komplet w tym tygodniu'
+    });
 
-    const m = vm.mood;
-    const moodValue = m ? `<span class="emoji" aria-hidden="true">${moodOf(m.avg).emoji}</span>${U.fmt1(m.avg)}` : '–';
-    const moodRow = U.dayRange(U.addDays(vm.today, -6), vm.today).map((key) => {
-      const e = vm.byDate.get(key);
-      return e && e.mood
-        ? `<span title="${esc(`${U.fmtDay(key)}: ${MOODS[e.mood].label}`)}">${MOODS[e.mood].emoji}</span>`
-        : `<i class="gap" title="${esc(`${U.fmtDay(key)}: brak oceny`)}"></i>`;
-    }).join('');
-
+    // Sleep: hours against 7 h
     const sl = vm.sleep;
-    const sleepValue = sl && sl.hours != null ? `${U.fmt1(sl.hours)}<small>h</small>` : '–';
-    const sleepSub = !sl ? 'brak snu z 7 dni' : sl.score != null ? `średnia 7 dni, ocena ${U.fmtInt(sl.score)}/100` : 'średnia 7 dni';
+    const sleepDays = days.map((key) => { const e = vm.byDate.get(key); return e && typeof e.sleep === 'number' ? e.sleep : null; });
+    tiles.push({
+      detail: 'd-sleep', label: 'Sen',
+      tone: !sl || sl.hours == null ? 'plain' : sl.hours >= S.SLEEP_GOOD ? 'blue' : sl.hours < 6.5 ? 'red' : 'blush',
+      value: sl && sl.hours != null ? `${U.fmt1(sl.hours)}<small>h</small>` : '–',
+      viz: miniBars(sleepDays, S.SLEEP_GOOD, (v) => (v < S.SLEEP_GOOD ? 'is-hi' : '')),
+      sub: !sl ? 'brak snu z 7 dni' : sl.score != null ? `średnia 7 dni, ocena ${U.fmtInt(sl.score)}/100` : 'średnia 7 dni'
+    });
 
-    $('#week').innerHTML = `
-      <div class="stat">
-        <p class="stat-label">Treningi w tym tygodniu</p>
-        <p class="stat-value">${done.length}<small>/${s.weeklyTrainings}</small></p>
-        <div class="slots" aria-hidden="true">${slots}</div>
-        <p class="stat-sub">${esc(trainSub)}</p>
-      </div>
-      <div class="stat">
-        <p class="stat-label">Kalorie</p>
-        <p class="stat-value${kcalState === 'over' ? ' is-over' : ''}">${kcalValue}</p>
-        <p class="stat-sub">${esc(kcalSub)}</p>
-      </div>
-      <div class="stat">
-        <p class="stat-label">Białko</p>
-        <p class="stat-value${proteinLow ? ' is-over' : ''}">${proteinValue}</p>
-        <p class="stat-sub">${esc(proteinSub)}</p>
-      </div>
-      <div class="stat">
-        <p class="stat-label">Tempo</p>
-        <p class="stat-value">${paceValue}</p>
-        <p class="stat-sub">${esc(paceSub)}</p>
-      </div>
-      <div class="stat">
-        <p class="stat-label">Samopoczucie</p>
-        <p class="stat-value">${moodValue}</p>
-        <p class="mood-row" role="img" aria-label="Samopoczucie z ostatnich 7 dni">${moodRow}</p>
-      </div>
-      <div class="stat">
-        <p class="stat-label">Sen</p>
-        <p class="stat-value">${sleepValue}</p>
-        <p class="stat-sub">${esc(sleepSub)}</p>
-      </div>`;
+    // Mood: the week as faces
+    const m = vm.mood;
+    const faces = days.map((key) => { const e = vm.byDate.get(key); return e && e.mood ? `<span>${MOODS[e.mood].emoji}</span>` : '<i class="gap"></i>'; }).join('');
+    tiles.push({
+      detail: 'd-mood', label: 'Samopoczucie',
+      tone: !m ? 'plain' : m.avg <= 2.5 ? 'red' : m.avg >= 3.5 ? 'pink' : 'blush',
+      value: m ? `<span class="emoji" aria-hidden="true">${moodOf(m.avg).emoji}</span>${U.fmt1(m.avg)}` : '–',
+      viz: `<span class="faces" aria-hidden="true">${faces}</span>`,
+      sub: m ? `średnia 7 dni z ${m.count} ${U.plural(m.count, 'oceny', 'ocen', 'ocen')}` : 'brak ocen z 7 dni'
+    });
+
+    // What goes with what
+    const strong = vm.insights.filter((it) => it.strong);
+    const ready = vm.insights.filter((it) => it.ready);
+    tiles.push({
+      detail: 'd-insights', label: 'Zależności',
+      tone: 'plain',
+      value: `${strong.length}<small>/${vm.insights.length}</small>`,
+      viz: '',
+      sub: strong.length ? strong[0].title : ready.length ? 'bez wyraźnych różnic' : 'zbieram dane'
+    });
+
+    // Badges
+    const on = vm.badges.filter((x) => x.unlocked).length;
+    const next = vm.badges.find((x) => !x.unlocked);
+    tiles.push({
+      detail: 'd-badges', label: 'Odznaki',
+      tone: 'plain',
+      value: `${on}<small>/${vm.badges.length}</small>`,
+      viz: meter(on / Math.max(1, vm.badges.length)),
+      sub: next ? `następna: ${next.title}` : 'wszystkie zdobyte'
+    });
+
+    $('#tiles').innerHTML = tiles.map(tile).join('');
+  }
+
+  // The mood card: the last 14 days, newest first.
+  function renderMoodDetail(vm) {
+    const days = U.dayRange(U.addDays(vm.today, -13), vm.today).reverse();
+    $('#mood-days').innerHTML = days.map((key) => {
+      const e = vm.byDate.get(key);
+      const m = e && e.mood ? MOODS[e.mood] : null;
+      return `<li class="${m ? `is-m${e.mood}` : 'is-none'}"><span class="md-day">${esc(U.fmtShort(key))}</span>` +
+        `<span class="md-emoji" aria-hidden="true">${m ? m.emoji : ''}</span><span class="md-label">${m ? esc(m.label) : 'brak oceny'}</span></li>`;
+    }).join('');
+    const avg = (keys) => {
+      const xs = keys.map((key) => vm.byDate.get(key)).filter((e) => e && e.mood).map((e) => e.mood);
+      return xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : null;
+    };
+    const now = avg(days.slice(0, 7));
+    const before = avg(days.slice(7));
+    $('#mood-note').textContent = 'ostatnie 14 dni';
+    $('#mood-caption').textContent = now == null
+      ? 'Brak ocen z ostatniego tygodnia.'
+      : `Średnia z 7 dni: ${U.fmt1(now)}${before != null ? `, tydzień wcześniej: ${U.fmt1(before)}` : ''}.`;
+  }
+
+  const TAB_KEY = 'wercia.tab';
+  const TABS = ['przeglad', 'tygodnie', 'dziennik'];
+
+  function setTab(name, scroll) {
+    const tab = TABS.includes(name) ? name : 'przeglad';
+    document.body.dataset.tab = tab;
+    $$('#tabs [role="tab"]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    try { localStorage.setItem(TAB_KEY, tab); } catch (_) { /* ignore */ }
+    if (scroll) window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  function openDetail(id) {
+    const dialog = document.getElementById(id);
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    // Charts were drawn while the card was closed; fit them to the card now.
+    $$('canvas', dialog).forEach((c) => {
+      const chart = window.Chart && Chart.getChart(c);
+      if (chart) chart.resize();
+    });
   }
 
   function renderCharts(vm) {
@@ -1607,6 +1717,19 @@
     $('#fab').addEventListener('click', () => openEntry(U.todayKey()));
     $('#today-state').addEventListener('click', () => { if (store.state.sync.status === 'error') openSettings(); });
     $('#btn-more').addEventListener('click', () => { ui.logLimit += 30; renderLog(ui.vm); });
+    $('#tabs').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[role="tab"]');
+      if (b) setTab(b.dataset.tab, true);
+    });
+    $('#tiles').addEventListener('click', (ev) => {
+      const t = ev.target.closest('.tile');
+      if (t) openDetail(t.dataset.detail);
+    });
+    $$('dialog.detail').forEach((dialog) => {
+      $$('[data-close]', dialog).forEach((b) => b.addEventListener('click', () => dialog.close()));
+      dialog.addEventListener('click', (ev) => { if (ev.target === dialog) dialog.close(); });
+    });
+
     $('#btn-weeks-more').addEventListener('click', () => { ui.weekLimit += 8; renderWeeks(ui.vm); });
 
     $('#range').addEventListener('click', (ev) => {
@@ -1709,6 +1832,9 @@
       const saved = JSON.parse(localStorage.getItem(RANGE_KEY) || 'null');
       if (saved === 30 || saved === 90 || saved === 'all') ui.range = saved;
     } catch (_) { /* ignore */ }
+    let tab = 'przeglad';
+    try { tab = localStorage.getItem(TAB_KEY) || tab; } catch (_) { /* ignore */ }
+    setTab(tab);
     if (new URLSearchParams(location.search).has('demo')) store.enterDemo();
     await Promise.all([store.load(), loadFonts()]);
     store.onChange(onStoreChange);
