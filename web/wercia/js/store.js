@@ -5,7 +5,7 @@
    survives reloads and lost connections, and each send re-reads the file and applies only the
    queued changes, so edits made elsewhere (another phone, Claude in chat) are kept.
    On GitHub the page and Claude write to a working branch (`staging`, default "bufor"), not to main.
-   Every Sunday at 10:00 a workflow moves the finished week (Sunday to Saturday) to main as one
+   Every Sunday at 08:00 a workflow moves the finished week (Sunday to Saturday) to main as one
    commit (weeklyMerge below) and rebuilds the working branch on top of it. */
 (function (DF) {
   'use strict';

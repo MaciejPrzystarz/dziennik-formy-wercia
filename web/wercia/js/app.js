@@ -1390,7 +1390,7 @@
       const err = st.error || (st.sync.status === 'error' ? st.sync.error : null);
       text = err ? `Połączono z ${where}, ale jest problem: ${err.message}` : `Włączona: ${where}.`;
       if (cfg.staging !== cfg.branch) {
-        text += ` Wpisy idą na gałąź ${cfg.staging}, a do ${cfg.branch} trafiają jednym commitem w niedzielę o 10:00 (tydzień od niedzieli do soboty).`;
+        text += ` Wpisy idą na gałąź ${cfg.staging}, a do ${cfg.branch} trafiają jednym commitem w niedzielę o 08:00 (tydzień od niedzieli do soboty).`;
       }
       const n = store.pendingCount();
       if (n) text += ` Czeka na wysłanie: ${n} ${U.plural(n, 'zmiana', 'zmiany', 'zmian')}.`;
