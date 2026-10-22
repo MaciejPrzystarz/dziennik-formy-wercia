@@ -189,4 +189,21 @@
       'log: tydzień 2026-10-04 – 2026-10-10 (2 dni z wpisem, poprawki: 2026-10-01, 2026-10-02, cele)');
     assert.ok(!store.weeklyMerge(m.data, staged, '2026-10-10').changed, 'second run changes nothing');
   });
+
+  test('weeklyMerge: a stale working branch keeps days saved straight to main', () => {
+    const base = store.normalize({ settings: { kcalTarget: 1950 }, entries: [{ date: '2026-10-09', kcal: 1800 }] });
+    const staged = store.normalize({
+      settings: { kcalTarget: 1950 },
+      entries: [{ date: '2026-10-09', kcal: 1800 }, { date: '2026-10-10', kcal: 2000 }]
+    });
+    const main = store.normalize({
+      settings: { kcalTarget: 1950 },
+      entries: [{ date: '2026-10-09', kcal: 1900 }, { date: '2026-10-12', kcal: 1700 }, { date: '2026-10-19', weight: 70 }]
+    });
+    const m = store.weeklyMerge(main, staged, '2026-10-17', base);
+    assert.deepEqual(m.data.entries.map((e) => [e.date, e.kcal || e.weight]),
+      [['2026-10-09', 1900], ['2026-10-10', 2000], ['2026-10-12', 1700], ['2026-10-19', 70]]);
+    assert.deepEqual(m.days, ['2026-10-10']);
+    assert.deepEqual(m.staged.entries, m.data.entries, 'the rebuilt working branch has everything too');
+  });
 })();

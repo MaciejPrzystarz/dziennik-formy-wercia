@@ -1,16 +1,21 @@
 // Weekly commit: moves the finished week (Sunday to Saturday) from the working branch to main.
 // Uses the app's own code (web/wercia/js/store.js), loaded into a sandbox the same way as tests/run.mjs,
 // so the file format is identical to what the app writes.
-// Usage (TZ=Europe/Warsaw): node scripts/weekly-commit.mjs <main file> <working branch file> [today RRRR-MM-DD]
+// Usage (TZ=Europe/Warsaw): node scripts/weekly-commit.mjs <main file> <working branch file> [today RRRR-MM-DD] [--base <file>]
+// --base: the file where the working branch split off main (git merge-base). With it, days saved
+// straight to main survive, and <working branch file> is rewritten with main's days merged in.
 // Writes the new main version over <main file>. Prints the commit message, or nothing when main is up to date.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
-const [mainPath, stagedPath, todayArg] = process.argv.slice(2);
-if (!mainPath || !stagedPath) {
-  console.error('usage: node scripts/weekly-commit.mjs <main file> <working branch file> [today]');
+const args = process.argv.slice(2);
+const at = args.indexOf('--base');
+const basePath = at >= 0 ? args.splice(at, 2)[1] : null;
+const [mainPath, stagedPath, todayArg] = args;
+if (!mainPath || !stagedPath || (at >= 0 && !basePath)) {
+  console.error('usage: node scripts/weekly-commit.mjs <main file> <working branch file> [today] [--base <file>]');
   process.exit(2);
 }
 
@@ -27,8 +32,10 @@ const today = todayArg || utils.todayKey();
 const win = store.weekWindow(today);
 const main = store.parse(readFileSync(mainPath, 'utf8'), 'data/wercia.json (main)');
 const staged = store.parse(readFileSync(stagedPath, 'utf8'), 'data/wercia.json (bufor)');
-const merged = store.weeklyMerge(main, staged, win.end);
+const base = basePath ? store.parse(readFileSync(basePath, 'utf8'), 'data/wercia.json (merge-base)') : undefined;
+const merged = store.weeklyMerge(main, staged, win.end, base);
 
+if (base) writeFileSync(stagedPath, store.serialize(merged.staged));
 if (merged.changed) {
   writeFileSync(mainPath, store.serialize(merged.data));
   console.log(store.weeklyMessage(win, merged));
