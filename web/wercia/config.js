@@ -6,5 +6,5 @@ window.WERCIA_CONFIG = {
   repo: 'dziennik-formy-wercia',
   branch: 'main',
   dataPath: 'data/wercia.json',
-  staging: 'bufor' // tu zapisuje strona i Claude; do main co niedzielę o 08:00 (.github/workflows/weekly.yml)
+  staging: 'bufor' // tu zapisuje strona i Claude; do main co sobotę o 23:00 (.github/workflows/weekly.yml)
 };
